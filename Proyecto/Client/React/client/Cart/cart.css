@@ -1,0 +1,11 @@
+.cart {
+  margin-top: 40px;
+  padding: 20px;
+  border: 1px solid #ccc;
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
