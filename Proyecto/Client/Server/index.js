@@ -45,8 +45,21 @@ app.put("/users/:id", async (req, res) => {
 
 app.post("/orders", async (req, res) => {
   try {
-    const { cart, userId } = req.body;
-    console.log(userId);
+    const { userId } = req.body;
+
+    const cartResult = await pool.query(
+      `SELECT c.*, p.price 
+       FROM cart_items c
+       JOIN products p ON c.product_id = p.id
+       WHERE c.user_id = $1`,
+      [userId],
+    );
+
+    const cart = cartResult.rows;
+
+    if (cart.length === 0) {
+      return res.status(400).json({ error: "Carrito vacío" });
+    }
 
     const total = cart.reduce(
       (acc, item) => acc + item.price * item.quantity,
@@ -64,9 +77,11 @@ app.post("/orders", async (req, res) => {
       await pool.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price)
          VALUES ($1, $2, $3, $4)`,
-        [orderId, item.id, item.quantity, item.price],
+        [orderId, item.product_id, item.quantity, item.price],
       );
     }
+
+    await pool.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
 
     res.json({ message: "Orden creada", orderId });
   } catch (err) {
@@ -87,6 +102,94 @@ app.post("/auth/google", async (req, res) => {
   }
 
   res.json(user.rows[0]);
+});
+app.post("/cart", async (req, res) => {
+  const { userId, productId, quantity } = req.body;
+
+  try {
+    const existing = await pool.query(
+      "SELECT * FROM cart_items WHERE user_id = $1 AND product_id = $2",
+      [userId, productId],
+    );
+
+    if (existing.rows.length > 0) {
+      const updated = await pool.query(
+        "UPDATE cart_items SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3 RETURNING *",
+        [quantity, userId, productId],
+      );
+      return res.json(updated.rows[0]);
+    }
+
+    const result = await pool.query(
+      "INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *",
+      [userId, productId, quantity],
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error en carrito" });
+  }
+});
+
+app.get("/cart/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT c.*, p.name, p.price
+      FROM cart_items c
+      JOIN products p ON c.product_id = p.id
+      WHERE c.user_id = $1`,
+      [userId],
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener carrito" });
+  }
+});
+
+app.delete("/cart/:id", async (req, res) => {
+  const { id } = req.params;
+
+  await pool.query("DELETE FROM cart_items WHERE id = $1", [id]);
+
+  res.send("Item eliminado del carrito");
+});
+
+app.delete("/cart/user/:userId", async (req, res) => {
+  const { userId } = req.params;
+  await pool.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
+  res.send("Carrito vaciado");
+});
+
+app.get("/orders/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+      o.id AS order_id,
+      o.total,
+      o.created_at,
+      oi.quantity,
+      oi.price,
+      p.name
+      FROM orders o 
+      JOIN order_items oi ON o.id = oi.order_id
+      JOIN products p ON oi.product_id = p.id
+      WHERE o.user_id = $1
+      ORDER BY o.id DESC
+      `,
+      [userId],
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener órdenes" });
+  }
 });
 
 app.listen(3000, () => {

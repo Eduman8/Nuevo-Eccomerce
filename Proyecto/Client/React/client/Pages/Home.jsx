@@ -2,69 +2,96 @@ import { useEffect, useState } from "react";
 import ProductCard from "../ProductCard/productCard";
 import Cart from "../Cart/cart";
 import Login from "../Login/Login";
+import { Link } from "react-router-dom";
 
-function Home() {
+function Home({ user, setUser }) {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [user, setUser] = useState(null);
+  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   useEffect(() => {
     fetch("http://localhost:3000/products")
       .then((res) => res.json())
-      .then((data) => setProducts(data));
+      .then((data) => setProducts(data))
+      .catch((err) => console.error(err));
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    fetch(`http://localhost:3000/cart/${user.id}`)
+      .then((res) => res.json())
+      .then((data) => setCart(data));
+  }, [user]);
+
   const addToCart = (product) => {
-    const existing = cart.find((item) => item.id === product.id);
-
-    if (existing) {
-      setCart(
-        cart.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        ),
-      );
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+    if (!user) {
+      alert("Tenés que iniciar sesión");
+      return;
     }
+
+    fetch("http://localhost:3000/cart", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        productId: product.id,
+        quantity: 1,
+      }),
+    })
+      .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
+      .then((res) => res.json())
+      .then((data) => setCart(data))
+      .catch((err) => console.error(err));
   };
 
-  const removeFromCart = (id) => {
-    setCart(cart.filter((item) => item.id !== id));
+  const removeFromCart = (cartItemId) => {
+    fetch(`http://localhost:3000/cart/${cartItemId}`, {
+      method: "DELETE",
+    })
+      .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
+      .then((res) => res.json())
+      .then((data) => setCart(data))
+      .catch((err) => console.error(err));
   };
-
-  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const checkout = () => {
     if (!user) {
       alert("Tenés que iniciar sesión");
       return;
     }
+
     fetch("http://localhost:3000/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        cart,
         userId: user.id,
       }),
     })
       .then((res) => res.json())
-      .then((dbUser) => {
-        setUser(dbUser);
-      })
       .then(() => {
         alert("Compra realizada");
         setCart([]);
-      });
+      })
+      .catch((err) => console.error(err));
   };
 
   return (
     <div>
       <h1>Tienda</h1>
 
+      {!user ? (
+        <Login setUser={setUser} />
+      ) : (
+        <p>
+          Bienvenido {user.name}
+          <button onClick={() => setUser(null)}>Cerrar sesión</button>
+        </p>
+      )}
       <div
         style={{
           display: "grid",
@@ -87,7 +114,7 @@ function Home() {
         total={total}
         checkout={checkout}
       />
-      {!user ? <Login setUser={setUser} /> : <p>Bienvenido {user.name}</p>}
+      <Link to="/orders">Ver mis pedidos</Link>
     </div>
   );
 }

@@ -3,22 +3,33 @@ import { jwtDecode } from "jwt-decode";
 
 function Login({ setUser }) {
   useEffect(() => {
-    google.accounts.id.initialize({
-      client_id:
-        "669527047269-lgca3sopn9gq72b41m7emeh3j8lk8a26.apps.googleusercontent.com",
-      callback: handleCredentialResponse,
-    });
+    const interval = setInterval(() => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id:
+            "669527047269-lgca3sopn9gq72b41m7emeh3j8lk8a26.apps.googleusercontent.com",
+          callback: handleCredentialResponse,
+        });
 
-    google.accounts.id.renderButton(document.getElementById("googleBtn"), {
-      theme: "outline",
-      size: "large",
-    });
+        window.google.accounts.id.renderButton(
+          document.getElementById("googleBtn"),
+          {
+            theme: "outline",
+            size: "large",
+          },
+        );
+
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleCredentialResponse(response) {
     console.log("RESPONSE:", response);
 
-    const data = jwtDecode(response.credential); // 👈 ESTO FALTABA
+    const data = jwtDecode(response.credential);
 
     console.log("DECODED:", data);
 
@@ -45,6 +56,5 @@ function Login({ setUser }) {
   }
   return <div id="googleBtn"></div>;
 }
-
 
 export default Login;
