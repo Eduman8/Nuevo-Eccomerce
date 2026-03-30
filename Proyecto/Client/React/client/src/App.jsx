@@ -5,6 +5,7 @@ import CategoryPage from "../CategoryPage/CategoryPage";
 import ProtectedRoute from "../ProtectedRoute";
 import Navbar from "../Navbar/Navbar";
 import { CartProvider } from "../Context/CartContext";
+import AdminPanel from "../Admin/AdminPanel";
 
 import { useState, useEffect } from "react";
 import "../Styles/global.css";
@@ -28,6 +29,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/category/:category" element={<CategoryPage />} />
+          <Route path="/admin" element={<AdminPanel />} />
 
           <Route
             path="/orders"
