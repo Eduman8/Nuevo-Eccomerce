@@ -14,6 +14,55 @@ app.get("/products", async (req, res) => {
   const result = await pool.query("SELECT * FROM products");
   res.json(result.rows);
 });
+app.post("/products", async (req, res) => {
+  const { name, description, price, category, image, stock } = req.body;
+
+  if (!name || !price || !category || !image) {
+    return res.status(400).json({
+      error: "name, price, category e image son obligatorios",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO products (name, description, price, category, image, stock)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        name.trim(),
+        description?.trim() || "",
+        Number(price),
+        category.trim().toLowerCase(),
+        image.trim(),
+        Number(stock) || 0,
+      ],
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al crear producto" });
+  }
+});
+app.delete("/products/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM products WHERE id = $1 RETURNING *",
+      [id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+
+    res.json({ message: "Producto eliminado", product: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al eliminar producto" });
+  }
+});
 app.post("/users", async (req, res) => {
   const { name, email } = req.body;
 

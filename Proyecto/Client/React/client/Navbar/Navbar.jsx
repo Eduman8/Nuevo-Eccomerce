@@ -63,6 +63,7 @@ function Navbar({ user, setUser }) {
 
         <div className="links">
           <Link to="/">Home</Link>
+          <Link to="/admin">Admin</Link>
           {user && <Link to="/orders">Pedidos</Link>}
         </div>
       </div>
