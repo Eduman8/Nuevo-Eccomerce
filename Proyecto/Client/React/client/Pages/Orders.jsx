@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./Orders.css";
 
 function Orders({ user }) {
   const [orders, setOrders] = useState([]);
@@ -35,7 +36,7 @@ function Orders({ user }) {
   if (!user) return <p>Iniciá sesión para ver tus pedidos</p>;
 
   return (
-    <div>
+    <div className="order-card">
       <h1>Mis pedidos</h1>
 
       {orders.length === 0 ? (

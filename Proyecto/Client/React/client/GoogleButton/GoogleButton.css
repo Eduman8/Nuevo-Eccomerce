@@ -1,0 +1,47 @@
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  padding: 10px 16px;
+
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  color: var(--text);
+  font-weight: 500;
+
+  cursor: pointer;
+  transition: 0.2s;
+
+  width: fit-content; /* 👈 clave */
+  max-width: 280px; /* 👈 límite elegante */
+}
+
+/* ICONO */
+.google-btn img {
+  width: 18px;
+  height: 18px;
+}
+
+/* HOVER */
+.google-btn:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+/* 📱 MOBILE */
+@media (max-width: 768px) {
+  .google-btn {
+    width: 100%; /* 👈 en mobile sí ocupa ancho */
+    max-width: none;
+  }
+}
+
+/* Dark mode */
+[data-theme="dark"] .google-btn {
+  background: #1f2937;
+  border: 1px solid #374151;
+}

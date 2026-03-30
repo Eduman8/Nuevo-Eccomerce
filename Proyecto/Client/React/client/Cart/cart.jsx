@@ -1,6 +1,9 @@
 import "./Cart.css";
+import { useCart } from "../Hooks/useCart";
 
-function Cart({ cart, removeFromCart, total, checkout }) {
+function Cart() {
+  const { cart, removeFromCart, total, checkout } = useCart();
+
   return (
     <div className="cart">
       <h2>Carrito</h2>

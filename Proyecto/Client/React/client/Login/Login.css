@@ -1,0 +1,60 @@
+.login-container {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end; /* 👈 derecha */
+  padding: 10px 20px;
+}
+
+.login-card {
+  width: 260px;
+
+  padding: 16px;
+
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.login-card h2 {
+  font-size: 16px;
+}
+
+.login-card p {
+  font-size: 13px;
+  color: var(--secondary);
+}
+.google-custom-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  max-width: 220px;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.google-custom-btn img {
+  width: 18px;
+}
+/* animación */
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

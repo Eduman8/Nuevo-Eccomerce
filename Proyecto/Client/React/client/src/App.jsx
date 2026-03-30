@@ -1,8 +1,13 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Home from "../Pages/Home";
+import Home from "../Home/Home";
 import Orders from "../Pages/Orders";
-import { useState, useEffect } from "react";
+import CategoryPage from "../CategoryPage/CategoryPage";
 import ProtectedRoute from "../ProtectedRoute";
+import Navbar from "../Navbar/Navbar";
+import { CartProvider } from "../Context/CartContext";
+
+import { useState, useEffect } from "react";
+import "../Styles/global.css";
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -11,27 +16,29 @@ function App() {
   });
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("user");
-    }
+    if (user) localStorage.setItem("user", JSON.stringify(user));
+    else localStorage.removeItem("user");
   }, [user]);
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home user={user} setUser={setUser} />} />
+      <CartProvider user={user}>
+        <Navbar user={user} setUser={setUser} />
 
-        <Route
-          path="/orders"
-          element={
-            <ProtectedRoute user={user}>
-              <Orders user={user} />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/category/:category" element={<CategoryPage />} />
+
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute user={user}>
+                <Orders user={user} />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </CartProvider>
     </BrowserRouter>
   );
 }

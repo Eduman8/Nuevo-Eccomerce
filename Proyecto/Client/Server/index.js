@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 const pool = require("./db");
 const cors = require("cors");
-
+const { products } = require("./db");
 app.use(express.json());
 app.use(cors());
 
@@ -191,7 +191,26 @@ app.get("/orders/:userId", async (req, res) => {
     res.status(500).json({ error: "Error al obtener órdenes" });
   }
 });
+app.patch("/products/:id", async (req, res) => {
+  const { id } = req.params;
+  const { category } = req.body;
 
+  try {
+    const result = await pool.query(
+      "UPDATE products SET category = $1 WHERE id = $2 RETURNING *",
+      [category, id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al actualizar producto" });
+  }
+});
 app.listen(3000, () => {
   console.log("Servidor en puerto 3000");
 });

@@ -1,0 +1,13 @@
+.order-card {
+  border: 1px solid #e2e8f0;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .order-card {
+    font-size: 14px;
+  }
+}
