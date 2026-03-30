@@ -23,7 +23,7 @@ coverage
 *.lcov
 
 # dB
-db.js
+*.db.js
 
 # nyc test coverage
 .nyc_output
