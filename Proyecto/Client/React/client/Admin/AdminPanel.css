@@ -13,60 +13,67 @@
 
 .admin-form input,
 .admin-form button {
-  border-radius: 8px;
-  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  border: 1px solid var(--border);
   padding: 0.7rem 0.8rem;
   font-size: 0.95rem;
+  background: var(--bg-soft);
 }
 
 .admin-form button {
   border: none;
-  background: #2654ff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: #fff;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.admin-products {
-  display: grid;
-  gap: 1rem;
-}
-
+.admin-products { display: grid; gap: 1rem; }
 .admin-product-card {
   display: flex;
   align-items: center;
   gap: 1rem;
-  border: 1px solid #e7e7e7;
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.8rem;
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
-.admin-product-card img {
-  width: 88px;
-  height: 88px;
-  object-fit: cover;
-  border-radius: 10px;
-}
-
-.admin-product-card h3 {
-  margin: 0;
-}
-
-.admin-product-card p {
-  margin: 0.2rem 0;
-}
-
+.admin-product-card img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px; }
+.admin-product-card p { color: var(--text-muted); }
 .danger-btn {
   margin-left: auto;
-  background: #c1121f;
+  background: var(--danger);
   color: #fff;
   border: none;
   border-radius: 8px;
   padding: 0.5rem 0.8rem;
   cursor: pointer;
 }
+.admin-message { color: var(--success); font-weight: 700; }
 
-.admin-message {
-  color: #0a7d35;
-  font-weight: 600;
+@media (max-width: 768px) {
+  .admin-container {
+    padding: 1rem 0.75rem 1.5rem;
+  }
+
+  .admin-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-product-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-product-card img {
+    width: 100%;
+    height: 180px;
+  }
+
+  .danger-btn {
+    margin-left: 0;
+    width: 100%;
+  }
 }
