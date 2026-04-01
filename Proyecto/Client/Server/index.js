@@ -207,6 +207,39 @@ app.delete("/cart/:id", async (req, res) => {
   res.send("Item eliminado del carrito");
 });
 
+
+app.patch("/cart/:id/decrease", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const itemResult = await pool.query(
+      "SELECT id, quantity FROM cart_items WHERE id = $1",
+      [id],
+    );
+
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ error: "Item no encontrado" });
+    }
+
+    const currentQty = itemResult.rows[0].quantity;
+
+    if (currentQty <= 1) {
+      await pool.query("DELETE FROM cart_items WHERE id = $1", [id]);
+      return res.json({ message: "Item eliminado del carrito" });
+    }
+
+    const updated = await pool.query(
+      "UPDATE cart_items SET quantity = quantity - 1 WHERE id = $1 RETURNING *",
+      [id],
+    );
+
+    return res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Error al actualizar carrito" });
+  }
+});
+
 app.delete("/cart/user/:userId", async (req, res) => {
   const { userId } = req.params;
   await pool.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
