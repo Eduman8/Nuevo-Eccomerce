@@ -46,3 +46,5 @@
     justify-content: center;
   }
 }
+.checkout-error { color: var(--danger); font-weight: 600; }
+.checkout-success { color: var(--success); font-weight: 600; }
