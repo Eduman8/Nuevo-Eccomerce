@@ -39,13 +39,24 @@ export function CartProvider({ children, user }) {
       .catch(console.error);
   };
 
+  const refreshCart = () =>
+    fetch(`http://localhost:3000/cart/${user.id}`)
+      .then((res) => res.json())
+      .then(setCart);
+
   const removeFromCart = (cartItemId) => {
     fetch(`http://localhost:3000/cart/${cartItemId}`, {
       method: "DELETE",
     })
-      .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
-      .then((res) => res.json())
-      .then(setCart)
+      .then(refreshCart)
+      .catch(console.error);
+  };
+
+  const decreaseFromCart = (cartItemId) => {
+    fetch(`http://localhost:3000/cart/${cartItemId}/decrease`, {
+      method: "PATCH",
+    })
+      .then(refreshCart)
       .catch(console.error);
   };
 
@@ -74,6 +85,7 @@ export function CartProvider({ children, user }) {
         addToCart,
         removeFromCart,
         checkout,
+        decreaseFromCart,
       }}
     >
       {children}
