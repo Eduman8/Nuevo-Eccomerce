@@ -17,15 +17,21 @@ function Orders({ user }) {
             grouped[item.order_id] = {
               id: item.order_id,
               total: item.total,
+              status: item.status,
+              shippingMethod: item.shipping_method,
+              shippingCost: item.shipping_cost,
+              shippingAddress: item.shipping_address,
               items: [],
             };
           }
 
-          grouped[item.order_id].items.push({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-          });
+          if (item.name) {
+            grouped[item.order_id].items.push({
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+            });
+          }
         });
 
         setOrders(Object.values(grouped));
@@ -53,12 +59,25 @@ function Orders({ user }) {
           >
             <h3>Pedido #{order.id}</h3>
             <p>Total: ${order.total}</p>
+            <p>Estado: {order.status}</p>
+            <p>Método de envío: {order.shippingMethod || "-"}</p>
+            <p>Costo de envío: ${order.shippingCost || 0}</p>
+            {order.shippingAddress?.street && (
+              <p>
+                Dirección: {order.shippingAddress.street}, {order.shippingAddress.city}, {" "}
+                {order.shippingAddress.country}
+              </p>
+            )}
 
-            {order.items.map((item, index) => (
-              <div key={index}>
-                {item.name} - {item.quantity} x ${item.price}
-              </div>
-            ))}
+            {order.items.length === 0 ? (
+              <p>Orden pendiente sin items confirmados todavía.</p>
+            ) : (
+              order.items.map((item, index) => (
+                <div key={index}>
+                  {item.name} - {item.quantity} x ${item.price}
+                </div>
+              ))
+            )}
           </div>
         ))
       )}
