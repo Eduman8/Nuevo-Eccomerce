@@ -28,3 +28,21 @@
 @media (max-width: 768px) {
   .order-card { font-size: 14px; }
 }
+
+@media (max-width: 768px) {
+  .order-card {
+    margin: 1rem 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .order-item {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .order-item {
+    font-size: 13px;
+    word-break: break-word;
+  }
+}

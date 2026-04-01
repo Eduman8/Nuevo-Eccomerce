@@ -26,3 +26,25 @@
 }
 .checkout-error { color: var(--danger); font-weight: 600; }
 .checkout-success { color: var(--success); font-weight: 600; }
+
+@media (max-width: 768px) {
+  .checkout-page {
+    margin: 1rem auto;
+    padding: 1rem 0.75rem;
+  }
+
+  .checkout-step {
+    padding: 0.85rem;
+  }
+
+  .checkout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-page button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+.checkout-error { color: var(--danger); font-weight: 600; }
+.checkout-success { color: var(--success); font-weight: 600; }

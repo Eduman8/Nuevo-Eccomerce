@@ -20,3 +20,13 @@
 
 .category-card h3 { margin-top: 10px; }
 .category-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+
+@media (max-width: 640px) {
+  .category-card {
+    padding: 12px;
+  }
+
+  .category-card h3 {
+    font-size: 1rem;
+  }
+}

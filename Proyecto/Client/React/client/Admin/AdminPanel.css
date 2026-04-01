@@ -52,3 +52,28 @@
   cursor: pointer;
 }
 .admin-message { color: var(--success); font-weight: 700; }
+
+@media (max-width: 768px) {
+  .admin-container {
+    padding: 1rem 0.75rem 1.5rem;
+  }
+
+  .admin-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-product-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-product-card img {
+    width: 100%;
+    height: 180px;
+  }
+
+  .danger-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -14,3 +14,17 @@
   margin-top: 12px; width: 100%; padding: 10px; background: linear-gradient(135deg, var(--accent), #f97316);
   border: none; border-radius: 10px; cursor: pointer; color: #fff; font-weight: 700;
 }
+
+@media (max-width: 640px) {
+  .card {
+    padding: 12px;
+  }
+
+  .card h3 {
+    font-size: 1rem;
+  }
+
+  .card button {
+    padding: 11px;
+  }
+}
