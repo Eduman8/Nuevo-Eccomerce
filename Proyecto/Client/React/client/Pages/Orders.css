@@ -1,13 +1,30 @@
 .order-card {
-  border: 1px solid #e2e8f0;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 10px;
+  max-width: 980px;
+  margin: 2rem auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
-/* MOBILE */
+.order-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.order-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg-soft);
+}
+
+.order-item p {
+  color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
-  .order-card {
-    font-size: 14px;
-  }
+  .order-card { font-size: 14px; }
 }
