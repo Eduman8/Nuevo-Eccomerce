@@ -16,7 +16,7 @@
   padding: 0.85rem 0.95rem;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--card-bg);
+  background: #4e46e513;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
@@ -32,10 +32,18 @@
   line-height: 1.35;
 }
 
-.notification-success { border-left: 4px solid var(--success); }
-.notification-error { border-left: 4px solid var(--danger); }
-.notification-warning { border-left: 4px solid #f59e0b; }
-.notification-info { border-left: 4px solid #38bdf8; }
+.notification-success {
+  border-left: 4px solid var(--success);
+}
+.notification-error {
+  border-left: 4px solid var(--danger);
+}
+.notification-warning {
+  border-left: 4px solid #f59e0b;
+}
+.notification-info {
+  border-left: 4px solid #38bdf8;
+}
 
 .notification-close {
   border: none;
