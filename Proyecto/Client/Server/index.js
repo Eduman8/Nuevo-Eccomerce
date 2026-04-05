@@ -17,6 +17,27 @@ const ORDER_STATUS = {
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
 
 const isPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+const isAdminEmail = (email) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  return Boolean(normalizedEmail && ADMIN_EMAILS.includes(normalizedEmail));
+};
+
+const requireAdmin = (req, res, next) => {
+  const userEmail = req.header("x-user-email");
+
+  if (!isAdminEmail(userEmail)) {
+    return res.status(403).json({
+      error: "Acceso denegado. Solo administradores autorizados.",
+    });
+  }
+
+  return next();
+};
 
 const normalizeShippingMethod = (value) => {
   const allowed = ["standard", "express", "pickup"];
@@ -65,7 +86,7 @@ app.get("/products", async (req, res) => {
   res.json(result.rows);
 });
 
-app.post("/products", async (req, res) => {
+app.post("/products", requireAdmin, async (req, res) => {
   const { name, description, price, category, image, stock } = req.body;
 
   if (!name || !price || !category || !image) {
@@ -96,7 +117,7 @@ app.post("/products", async (req, res) => {
   }
 });
 
-app.delete("/products/:id", async (req, res) => {
+app.delete("/products/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -346,7 +367,7 @@ app.post("/orders/:orderId/confirm", async (req, res) => {
   }
 });
 
-app.patch("/orders/:orderId/status", async (req, res) => {
+app.patch("/orders/:orderId/status", requireAdmin, async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
 
@@ -385,7 +406,10 @@ app.post("/auth/google", async (req, res) => {
     );
   }
 
-  res.json(user.rows[0]);
+  res.json({
+    ...user.rows[0],
+    isAdmin: isAdminEmail(email),
+  });
 });
 
 app.post("/cart", async (req, res) => {

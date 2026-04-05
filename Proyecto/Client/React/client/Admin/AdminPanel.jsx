@@ -10,7 +10,7 @@ const initialForm = {
   stock: "",
 };
 
-function AdminPanel() {
+function AdminPanel({ user }) {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,10 @@ function AdminPanel() {
     try {
       const response = await fetch("http://localhost:3000/products", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-email": user?.email || "",
+        },
         body: JSON.stringify(form),
       });
 
@@ -78,6 +81,9 @@ function AdminPanel() {
     try {
       const response = await fetch(`http://localhost:3000/products/${productId}`, {
         method: "DELETE",
+        headers: {
+          "x-user-email": user?.email || "",
+        },
       });
 
       if (!response.ok) {
