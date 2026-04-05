@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../Hooks/useCart";
+import { useNotification } from "../Notifications/NotificationProvider";
 import AddressStep from "./AddressStep";
 import ShippingStep from "./ShippingStep";
 import PaymentStep from "./PaymentStep";
@@ -24,9 +25,8 @@ function CheckoutPage({ user }) {
   const [paymentToken, setPaymentToken] = useState("");
   const [shippingReference, setShippingReference] = useState("");
   const [orderSummary, setOrderSummary] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const { success, error: notifyError, info } = useNotification();
 
   const shippingCost = useMemo(() => {
     if (shippingMethod === "express") return 9.99;
@@ -68,8 +68,6 @@ function CheckoutPage({ user }) {
 
   const handleCreateOrder = async () => {
     try {
-      setError("");
-      setSuccess("");
       validateForm();
       setLoading(true);
 
@@ -80,9 +78,10 @@ function CheckoutPage({ user }) {
       });
 
       setOrderSummary(pendingOrder);
-      setSuccess("Orden creada en estado pending. Falta confirmarla.");
+      success("Orden creada en estado pending. Falta confirmarla.");
+      info("Revisá el resumen y confirmá el pago para finalizar la compra.");
     } catch (err) {
-      setError(err.message);
+      notifyError(err.message);
     } finally {
       setLoading(false);
     }
@@ -90,9 +89,6 @@ function CheckoutPage({ user }) {
 
   const handleConfirmOrder = async () => {
     try {
-      setError("");
-      setSuccess("");
-
       if (!orderSummary?.order?.id) {
         throw new Error("Primero debes crear la orden pendiente.");
       }
@@ -109,10 +105,10 @@ function CheckoutPage({ user }) {
         shippingReference,
       });
 
-      setSuccess(`Compra confirmada. Estado final: ${result.status}.`);
+      success(`Compra confirmada. Estado final: ${result.status}.`);
       setTimeout(() => navigate("/orders"), 1000);
     } catch (err) {
-      setError(err.message);
+      notifyError(err.message);
     } finally {
       setLoading(false);
     }
@@ -146,9 +142,6 @@ function CheckoutPage({ user }) {
           loading={loading}
         />
       )}
-
-      {error && <p className="checkout-error">{error}</p>}
-      {success && <p className="checkout-success">{success}</p>}
     </div>
   );
 }

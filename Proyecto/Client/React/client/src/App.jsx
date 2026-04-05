@@ -8,6 +8,7 @@ import { CartProvider } from "../Context/CartContext";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
 import { isAdminUser } from "../utils/adminAccess";
+import { NotificationProvider } from "../Notifications/NotificationProvider";
 
 import { useState, useEffect } from "react";
 import "../Styles/global.css";
@@ -25,40 +26,42 @@ function App() {
 
   return (
     <BrowserRouter>
-      <CartProvider user={user}>
-        <Navbar user={user} setUser={setUser} />
+      <NotificationProvider>
+        <CartProvider user={user}>
+          <Navbar user={user} setUser={setUser} />
 
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/category/:category" element={<CategoryPage />} />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute user={user} condition={isAdminUser(user)}>
-                <AdminPanel user={user} />
-              </ProtectedRoute>
-            }
-          />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/category/:category" element={<CategoryPage />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute user={user} condition={isAdminUser(user)}>
+                  <AdminPanel user={user} />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/orders"
-            element={
-              <ProtectedRoute user={user}>
-                <Orders user={user} />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute user={user}>
+                  <Orders user={user} />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute user={user}>
-                <CheckoutPage user={user} />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </CartProvider>
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute user={user}>
+                  <CheckoutPage user={user} />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </CartProvider>
+      </NotificationProvider>
     </BrowserRouter>
   );
 }
