@@ -7,6 +7,7 @@ import Navbar from "../Navbar/Navbar";
 import { CartProvider } from "../Context/CartContext";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
+import { isAdminUser } from "../utils/adminAccess";
 
 import { useState, useEffect } from "react";
 import "../Styles/global.css";
@@ -30,7 +31,14 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/category/:category" element={<CategoryPage />} />
-          <Route path="/admin" element={<AdminPanel />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute user={user} condition={isAdminUser(user)}>
+                <AdminPanel user={user} />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/orders"
