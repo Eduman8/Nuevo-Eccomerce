@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNotification } from "../Notifications/NotificationProvider";
 import "./AdminPanel.css";
 
 const initialForm = {
@@ -15,7 +16,8 @@ function AdminPanel({ user }) {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [productToDelete, setProductToDelete] = useState(null);
+  const { success, error: notifyError, warning } = useNotification();
 
   const loadProducts = async () => {
     setLoading(true);
@@ -25,7 +27,7 @@ function AdminPanel({ user }) {
       setProducts(data);
     } catch (error) {
       console.error(error);
-      setMessage("No se pudieron cargar los productos.");
+      notifyError("No se pudieron cargar los productos.");
     } finally {
       setLoading(false);
     }
@@ -43,7 +45,6 @@ function AdminPanel({ user }) {
   const handleCreateProduct = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    setMessage("");
 
     try {
       const response = await fetch("http://localhost:3000/products", {
@@ -63,21 +64,16 @@ function AdminPanel({ user }) {
 
       setProducts((prev) => [data, ...prev]);
       setForm(initialForm);
-      setMessage("Producto creado correctamente.");
+      success("Producto creado correctamente.");
     } catch (error) {
       console.error(error);
-      setMessage(error.message);
+      notifyError(error.message);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteProduct = async (productId) => {
-    const shouldDelete = window.confirm(
-      "¿Seguro que querés borrar este producto?",
-    );
-    if (!shouldDelete) return;
-
     try {
       const response = await fetch(`http://localhost:3000/products/${productId}`, {
         method: "DELETE",
@@ -92,10 +88,12 @@ function AdminPanel({ user }) {
       }
 
       setProducts((prev) => prev.filter((product) => product.id !== productId));
-      setMessage("Producto eliminado.");
+      success("Producto eliminado.");
     } catch (error) {
       console.error(error);
-      setMessage(error.message);
+      notifyError(error.message);
+    } finally {
+      setProductToDelete(null);
     }
   };
 
@@ -155,8 +153,6 @@ function AdminPanel({ user }) {
         </button>
       </form>
 
-      {message && <p className="admin-message">{message}</p>}
-
       {loading ? (
         <p>Cargando productos...</p>
       ) : (
@@ -174,12 +170,41 @@ function AdminPanel({ user }) {
               </div>
               <button
                 className="danger-btn"
-                onClick={() => handleDeleteProduct(product.id)}
+                onClick={() => setProductToDelete(product)}
               >
                 Borrar
               </button>
             </article>
           ))}
+        </div>
+      )}
+
+      {productToDelete && (
+        <div className="admin-confirm-overlay" role="dialog" aria-modal="true">
+          <div className="admin-confirm-modal">
+            <h3>Confirmar eliminación</h3>
+            <p>
+              ¿Seguro que querés borrar <strong>{productToDelete.name}</strong>?
+            </p>
+            <div className="admin-confirm-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setProductToDelete(null);
+                  warning("Eliminación cancelada.");
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={() => handleDeleteProduct(productToDelete.id)}
+              >
+                Sí, borrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

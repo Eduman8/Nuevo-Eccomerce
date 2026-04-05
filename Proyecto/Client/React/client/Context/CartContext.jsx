@@ -1,9 +1,11 @@
 import { createContext, useState, useEffect } from "react";
+import { useNotification } from "../Notifications/NotificationProvider";
 
 export const CartContext = createContext();
 
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
+  const { info, warning, error: notifyError } = useNotification();
 
   useEffect(() => {
     if (!user) {
@@ -20,7 +22,10 @@ export function CartProvider({ children, user }) {
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const addToCart = (product) => {
-    if (!user) return alert("Tenés que iniciar sesión");
+    if (!user) {
+      warning("Tenés que iniciar sesión para agregar productos al carrito.");
+      return;
+    }
 
     fetch("http://localhost:3000/cart", {
       method: "POST",
@@ -36,7 +41,10 @@ export function CartProvider({ children, user }) {
       .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
       .then((res) => res.json())
       .then(setCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo agregar el producto al carrito.");
+      });
   };
 
   const refreshCart = () => {
@@ -55,7 +63,10 @@ export function CartProvider({ children, user }) {
       method: "DELETE",
     })
       .then(refreshCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo eliminar el producto del carrito.");
+      });
   };
 
   const decreaseFromCart = (cartItemId) => {
@@ -63,7 +74,10 @@ export function CartProvider({ children, user }) {
       method: "PATCH",
     })
       .then(refreshCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo actualizar la cantidad del producto.");
+      });
   };
 
   const createPendingOrder = async (checkoutData) => {
@@ -120,7 +134,7 @@ export function CartProvider({ children, user }) {
   };
 
   const checkout = () => {
-    alert("Ahora el checkout se realiza desde la pantalla /checkout.");
+    info("Te redirigimos al checkout para finalizar tu compra.");
   };
 
   return (

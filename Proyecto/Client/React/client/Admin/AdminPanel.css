@@ -51,7 +51,46 @@
   padding: 0.5rem 0.8rem;
   cursor: pointer;
 }
-.admin-message { color: var(--success); font-weight: 700; }
+
+.admin-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 2500;
+}
+
+.admin-confirm-modal {
+  width: min(92vw, 450px);
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 1.2rem;
+}
+
+.admin-confirm-modal h3 {
+  margin: 0 0 0.4rem;
+}
+
+.admin-confirm-modal p {
+  margin: 0 0 1rem;
+}
+
+.admin-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.admin-confirm-actions button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
 
 @media (max-width: 768px) {
   .admin-container {
