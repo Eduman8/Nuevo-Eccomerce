@@ -1,12 +1,17 @@
 .notification-center {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
   z-index: 3000;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  width: min(92vw, 360px);
+  width: min(92vw, 520px);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 0 0.25rem;
+  pointer-events: none;
 }
 
 .notification {
@@ -18,6 +23,7 @@
   border: 1px solid var(--border);
   background: var(--card-bg);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
 }
 
 .notification-title {
@@ -43,4 +49,11 @@
   color: var(--text-color);
   cursor: pointer;
   font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+  .notification-center {
+    bottom: 0.75rem;
+    width: min(96vw, 520px);
+  }
 }
