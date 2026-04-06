@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Login from "../Login/Login";
 import { useCart } from "../Hooks/useCart";
 import "./Navbar.css";
 
 function Navbar({ user, setUser }) {
+  const navigate = useNavigate();
   const [theme, setTheme] = useState("light");
   const [showLogin, setShowLogin] = useState(false);
   const [showCart, setShowCart] = useState(false);
@@ -155,8 +156,15 @@ function Navbar({ user, setUser }) {
 
             <div className="cart-footer">
               <strong>Total: ${total}</strong>
-              <button className="checkout" onClick={checkout}>
-                Comprar
+              <button
+                className="checkout"
+                onClick={() => {
+                  checkout();
+                  setShowCart(false);
+                  navigate("/checkout");
+                }}
+              >
+                Ir al checkout
               </button>
             </div>
           </>
