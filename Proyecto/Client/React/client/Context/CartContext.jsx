@@ -1,7 +1,5 @@
-import { createContext, useState, useEffect } from "react";
-import { useNotification } from "../Notifications/NotificationProvider";
-
-export const CartContext = createContext();
+import { useState, useEffect } from "react";
+import { CartContext } from "./cartContext";
 
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
