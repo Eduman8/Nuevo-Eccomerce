@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { CartContext } from "./cartContext";
+import { useNotification } from "../Hooks/useNotification";
 
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
@@ -186,7 +187,7 @@ export function CartProvider({ children, user }) {
   };
 
   const checkout = () => {
-    alert("Ahora el checkout se realiza desde la pantalla /checkout.");
+    info("Ahora el checkout se realiza desde la pantalla /checkout.");
   };
 
   return (

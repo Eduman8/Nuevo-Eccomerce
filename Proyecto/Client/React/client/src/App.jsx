@@ -7,6 +7,7 @@ import Navbar from "../Navbar/Navbar";
 import { CartProvider } from "../Context/CartContext.jsx";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
+import NotificationProvider from "../Context/NotificationProvider.jsx";
 
 import { useState, useEffect } from "react";
 import "../Styles/global.css";
@@ -23,8 +24,9 @@ function App() {
   }, [user]);
 
   return (
-    <BrowserRouter>
-      <CartProvider user={user}>
+    <NotificationProvider>
+      <BrowserRouter>
+        <CartProvider user={user}>
         <Navbar user={user} setUser={setUser} />
 
         <Routes>
@@ -50,8 +52,9 @@ function App() {
             }
           />
         </Routes>
-      </CartProvider>
-    </BrowserRouter>
+        </CartProvider>
+      </BrowserRouter>
+    </NotificationProvider>
   );
 }
 
