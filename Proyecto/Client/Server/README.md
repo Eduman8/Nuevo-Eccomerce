@@ -9,6 +9,11 @@ cp .env.example .env
 ```
 
 2. Completá tu `MP_ACCESS_TOKEN` (o `MERCADOPAGO_ACCESS_TOKEN`) en `.env`.
+   Ejemplo:
+
+```env
+MP_ACCESS_TOKEN=APP_USR-tu-token-acá
+```
 
 > El token de prueba suele empezar con `TEST-` y el de producción con `APP_USR-`.
 

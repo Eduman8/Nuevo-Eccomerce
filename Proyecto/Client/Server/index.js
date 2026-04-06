@@ -3,9 +3,10 @@ const app = express();
 const pool = require("./db");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const path = require("path");
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 app.use(express.json());
 app.use(cors());
