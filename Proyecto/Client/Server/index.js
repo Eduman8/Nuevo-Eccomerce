@@ -23,6 +23,16 @@ const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:3000";
 
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+const isAdminEmail = (email) => {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(String(email).trim().toLowerCase());
+};
+
 const mercadopagoClient = MP_ACCESS_TOKEN
   ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN })
   : null;
@@ -593,19 +603,26 @@ app.patch("/orders/:orderId/status", async (req, res) => {
 app.post("/auth/google", async (req, res) => {
   const { name, email } = req.body;
 
-  let user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+  try {
+    let user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
-  if (user.rows.length === 0) {
-    user = await pool.query(
-      "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-      [name, email],
-    );
+    if (user.rows.length === 0) {
+      user = await pool.query(
+        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+        [name, email],
+      );
+    }
+
+    const dbUser = user.rows[0];
+
+    res.json({
+      ...dbUser,
+      isAdmin: isAdminEmail(dbUser.email),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al autenticar con Google" });
   }
-
-  res.json({
-    ...user.rows[0],
-    isAdmin: isAdminEmail(email),
-  });
 });
 
 app.post("/cart", async (req, res) => {
