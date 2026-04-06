@@ -59,14 +59,11 @@ function Orders({ user }) {
       {orders.length === 0 ? (
         <p>No tenés pedidos todavía</p>
       ) : (
-        orders.map((order) => (
+        <div className="order-list">
+          {orders.map((order) => (
           <div
             key={order.id}
-            style={{
-              border: "1px solid #ccc",
-              margin: "10px",
-              padding: "10px",
-            }}
+            className="order-item"
           >
             <h3>Pedido #{order.id}</h3>
             <p>Total: ${order.total}</p>
@@ -90,7 +87,8 @@ function Orders({ user }) {
               ))
             )}
           </div>
-        ))
+        ))}
+        </div>
       )}
     </div>
   );

@@ -390,6 +390,7 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
       preference_id: preferenceResult.id,
     });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     return res.status(500).json({ error: "Error al crear preferencia de pago" });
   }
@@ -601,7 +602,10 @@ app.post("/auth/google", async (req, res) => {
     );
   }
 
-  res.json(user.rows[0]);
+  res.json({
+    ...user.rows[0],
+    isAdmin: isAdminEmail(email),
+  });
 });
 
 app.post("/cart", async (req, res) => {

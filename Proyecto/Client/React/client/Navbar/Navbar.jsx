@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Login from "../Login/Login";
 import { useCart } from "../Hooks/useCart";
+import { isAdminUser } from "../utils/adminAccess";
 import "./Navbar.css";
 
 function Navbar({ user, setUser }) {
@@ -74,7 +75,7 @@ function Navbar({ user, setUser }) {
 
           <div className="links">
             <Link to="/">Home</Link>
-            <Link to="/admin">Admin</Link>
+            {isAdminUser(user) && <Link to="/admin">Admin</Link>}
             {user && <Link to="/orders">Pedidos</Link>}
           </div>
         </div>
