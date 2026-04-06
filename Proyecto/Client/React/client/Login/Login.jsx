@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jwtDecode } from "jwt-decode";
-import GoogleButton from "../GoogleButton/GoogleButton";
 
 function Login({ setUser }) {
   const googleBtnRef = useRef(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -17,24 +17,18 @@ function Login({ setUser }) {
         window.google.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
           size: "large",
+          text: "continue_with",
+          shape: "pill",
+          width: 260,
         });
 
+        setReady(true);
         clearInterval(interval);
       }
     }, 100);
 
     return () => clearInterval(interval);
   }, []);
-
-  const handleGoogleLogin = () => {
-    const btn = googleBtnRef.current?.querySelector("div[role=button]");
-
-    if (btn) {
-      btn.click();
-    } else {
-      console.error("Google button not ready");
-    }
-  };
 
   function handleCredentialResponse(response) {
     const data = jwtDecode(response.credential);
@@ -62,23 +56,10 @@ function Login({ setUser }) {
   }
 
   return (
-    <>
-      <div className="login-card">
-        <GoogleButton onClick={handleGoogleLogin} />
-      </div>
-
-      <div
-        ref={googleBtnRef}
-        style={{
-          position: "absolute",
-          left: "-9999px",
-          top: "-9999px",
-          width: 200,
-          shape: "fill",
-          text: "continue_with",
-        }}
-      ></div>
-    </>
+    <div className="login-card">
+      {!ready && <p>Cargando Google…</p>}
+      <div ref={googleBtnRef} />
+    </div>
   );
 }
 
