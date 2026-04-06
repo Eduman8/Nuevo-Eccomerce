@@ -1,7 +1,7 @@
 .notification-center {
   position: fixed;
   left: 50%;
-  bottom: 1rem;
+  top: 1rem;
   transform: translateX(-50%);
   z-index: 3000;
   display: flex;
@@ -21,8 +21,8 @@
   padding: 0.85rem 0.95rem;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: #4e46e513;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--card) 80%, var(--bg-soft));
+  box-shadow: var(--shadow);
   pointer-events: auto;
 }
 
@@ -40,28 +40,32 @@
 
 .notification-success {
   border-left: 4px solid var(--success);
+  background: color-mix(in srgb, var(--success) 24%, var(--card));
 }
 .notification-error {
   border-left: 4px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 25%, var(--card));
 }
 .notification-warning {
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 27%, var(--card));
 }
 .notification-info {
-  border-left: 4px solid #38bdf8;
+  border-left: 4px solid var(--info);
+  background: color-mix(in srgb, var(--info) 24%, var(--card));
 }
 
 .notification-close {
   border: none;
   background: transparent;
-  color: var(--text-color);
+  color: var(--text);
   cursor: pointer;
   font-size: 0.95rem;
 }
 
 @media (max-width: 768px) {
   .notification-center {
-    bottom: 0.75rem;
+    top: 0.75rem;
     width: min(96vw, 520px);
   }
 }

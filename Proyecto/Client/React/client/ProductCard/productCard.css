@@ -11,8 +11,8 @@
 .card h3 { margin-top: 12px; color: var(--text); }
 .card p { color: var(--text-muted); margin-top: 4px; }
 .card button {
-  margin-top: 12px; width: 100%; padding: 10px; background: linear-gradient(135deg, var(--accent), #f97316);
-  border: none; border-radius: 10px; cursor: pointer; color: #fff; font-weight: 700;
+  margin-top: 12px; width: 100%; padding: 10px; background: linear-gradient(135deg, var(--accent), var(--primary));
+  border: none; border-radius: 10px; cursor: pointer; color: var(--on-primary); font-weight: 700;
 }
 
 @media (max-width: 640px) {

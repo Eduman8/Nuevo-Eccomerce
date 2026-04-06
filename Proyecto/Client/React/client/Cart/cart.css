@@ -8,6 +8,6 @@
 }
 
 .cart-item { display: flex; justify-content: space-between; margin-bottom: 10px; }
-.cart button { background: var(--danger); border: none; padding: 5px 10px; border-radius: 6px; color: white; cursor: pointer; }
-.checkout { margin-top: 15px; width: 100%; padding: 10px; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; color: white; }
+.cart button { background: var(--danger); border: none; padding: 5px 10px; border-radius: 6px; color: var(--on-primary); cursor: pointer; }
+.checkout { margin-top: 15px; width: 100%; padding: 10px; background: var(--primary); border: none; border-radius: 8px; cursor: pointer; color: var(--on-primary); }
 @media (max-width: 768px) { .cart { padding: 15px; } .cart-item { flex-direction: column; gap: 5px; } }
