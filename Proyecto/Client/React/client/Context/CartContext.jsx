@@ -105,19 +105,43 @@ export function CartProvider({ children, user }) {
     return payload;
   };
 
-  const confirmOrder = async ({ orderId, paymentToken, shippingReference }) => {
+  const createMercadoPagoPreference = async (orderId) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para pagar.");
+    }
+
+    const response = await fetch(
+      `http://localhost:3000/orders/${orderId}/checkout-pro-preference`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: user.id }),
+      },
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo crear la preferencia de pago.");
+    }
+
+    return payload;
+  };
+
+  const confirmCashOrder = async ({ orderId, shippingReference }) => {
     if (!user) {
       throw new Error("Debes iniciar sesión para confirmar.");
     }
 
-    const response = await fetch(`http://localhost:3000/orders/${orderId}/confirm`, {
+    const response = await fetch(`http://localhost:3000/orders/${orderId}/confirm-cash`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         userId: user.id,
-        paymentToken,
         shippingReference,
       }),
     });
@@ -125,7 +149,37 @@ export function CartProvider({ children, user }) {
     const payload = await response.json();
 
     if (!response.ok) {
-      throw new Error(payload.error || "No se pudo confirmar el pago.");
+      throw new Error(payload.error || "No se pudo confirmar la compra en efectivo.");
+    }
+
+    await refreshCart();
+
+    return payload;
+  };
+
+  const confirmMercadoPagoOrder = async ({ orderId, paymentId }) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para confirmar.");
+    }
+
+    const response = await fetch(
+      `http://localhost:3000/orders/${orderId}/confirm-mercadopago`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          paymentId,
+        }),
+      },
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo confirmar el pago de Mercado Pago.");
     }
 
     await refreshCart();
@@ -134,7 +188,7 @@ export function CartProvider({ children, user }) {
   };
 
   const checkout = () => {
-    info("Te redirigimos al checkout para finalizar tu compra.");
+    alert("Ahora el checkout se realiza desde la pantalla /checkout.");
   };
 
   return (
@@ -147,7 +201,9 @@ export function CartProvider({ children, user }) {
         checkout,
         decreaseFromCart,
         createPendingOrder,
-        confirmOrder,
+        createMercadoPagoPreference,
+        confirmCashOrder,
+        confirmMercadoPagoOrder,
         refreshCart,
       }}
     >

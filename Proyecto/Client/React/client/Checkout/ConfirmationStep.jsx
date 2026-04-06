@@ -1,4 +1,4 @@
-function ConfirmationStep({ orderSummary, shippingReference, onShippingReferenceChange, onConfirm, loading }) {
+function ConfirmationStep({ orderSummary, shippingReference, onShippingReferenceChange, onConfirmCash, loading }) {
   return (
     <section className="checkout-step">
       <h3>4. Confirmación</h3>
@@ -10,13 +10,13 @@ function ConfirmationStep({ orderSummary, shippingReference, onShippingReference
       </p>
 
       <input
-        placeholder="Referencia de envío"
+        placeholder="Referencia de envío / observación"
         value={shippingReference}
         onChange={(e) => onShippingReferenceChange(e.target.value)}
       />
 
-      <button onClick={onConfirm} disabled={loading}>
-        {loading ? "Confirmando..." : "Confirmar compra"}
+      <button onClick={onConfirmCash} disabled={loading}>
+        {loading ? "Confirmando..." : "Confirmar compra en efectivo"}
       </button>
     </section>
   );

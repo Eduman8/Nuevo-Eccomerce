@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import "./Orders.css";
 
+const shippingLabel = {
+  home_delivery: "Envío a domicilio",
+  pickup: "Retirar en local",
+};
+
+const paymentLabel = {
+  mercadopago: "Mercado Pago",
+  cash: "Efectivo",
+};
+
 function Orders({ user }) {
   const [orders, setOrders] = useState([]);
 
@@ -21,6 +31,7 @@ function Orders({ user }) {
               shippingMethod: item.shipping_method,
               shippingCost: item.shipping_cost,
               shippingAddress: item.shipping_address,
+              paymentMethod: item.payment_method,
               items: [],
             };
           }
@@ -57,12 +68,12 @@ function Orders({ user }) {
             <h3>Pedido #{order.id}</h3>
             <p>Total: ${order.total}</p>
             <p>Estado: {order.status}</p>
-            <p>Método de envío: {order.shippingMethod || "-"}</p>
+            <p>Método de envío: {shippingLabel[order.shippingMethod] || "-"}</p>
             <p>Costo de envío: ${order.shippingCost || 0}</p>
+            <p>Método de pago: {paymentLabel[order.paymentMethod] || "-"}</p>
             {order.shippingAddress?.street && (
               <p>
-                Dirección: {order.shippingAddress.street}, {order.shippingAddress.city}, {" "}
-                {order.shippingAddress.country}
+                Dirección: {order.shippingAddress.street}, {order.shippingAddress.city}
               </p>
             )}
 

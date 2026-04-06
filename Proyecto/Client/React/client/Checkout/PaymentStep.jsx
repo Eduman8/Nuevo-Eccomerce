@@ -1,4 +1,4 @@
-function PaymentStep({ paymentMethod, paymentToken, onMethodChange, onTokenChange }) {
+function PaymentStep({ paymentMethod, onMethodChange }) {
   return (
     <section className="checkout-step">
       <h3>3. Pago</h3>
@@ -7,21 +7,11 @@ function PaymentStep({ paymentMethod, paymentToken, onMethodChange, onTokenChang
           <input
             type="radio"
             name="paymentMethod"
-            value="card"
-            checked={paymentMethod === "card"}
-            onChange={(e) => onMethodChange(e.target.value)}
-          />
-          Tarjeta
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="paymentMethod"
             value="mercadopago"
             checked={paymentMethod === "mercadopago"}
             onChange={(e) => onMethodChange(e.target.value)}
           />
-          Mercado Pago
+          Mercado Pago (Checkout Pro)
         </label>
         <label>
           <input
@@ -31,15 +21,9 @@ function PaymentStep({ paymentMethod, paymentToken, onMethodChange, onTokenChang
             checked={paymentMethod === "cash"}
             onChange={(e) => onMethodChange(e.target.value)}
           />
-          Contra entrega
+          Efectivo
         </label>
       </div>
-
-      <input
-        placeholder="Token de pago (simulado)"
-        value={paymentToken}
-        onChange={(e) => onTokenChange(e.target.value)}
-      />
     </section>
   );
 }

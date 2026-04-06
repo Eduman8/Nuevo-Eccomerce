@@ -2,6 +2,10 @@ const express = require("express");
 const app = express();
 const pool = require("./db");
 const cors = require("cors");
+const dotenv = require("dotenv");
+const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
+
+dotenv.config();
 
 app.use(express.json());
 app.use(cors());
@@ -15,32 +19,16 @@ const ORDER_STATUS = {
 };
 
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:3000";
 
-const isPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
-const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || "")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
-const isAdminEmail = (email) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  return Boolean(normalizedEmail && ADMIN_EMAILS.includes(normalizedEmail));
-};
-
-const requireAdmin = (req, res, next) => {
-  const userEmail = req.header("x-user-email");
-
-  if (!isAdminEmail(userEmail)) {
-    return res.status(403).json({
-      error: "Acceso denegado. Solo administradores autorizados.",
-    });
-  }
-
-  return next();
-};
+const mercadopagoClient = MP_ACCESS_TOKEN
+  ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN })
+  : null;
 
 const normalizeShippingMethod = (value) => {
-  const allowed = ["standard", "express", "pickup"];
+  const allowed = ["home_delivery", "pickup"];
   const normalized = String(value || "").trim().toLowerCase();
   return allowed.includes(normalized) ? normalized : null;
 };
@@ -59,6 +47,19 @@ const parseJsonIfNeeded = (value) => {
   return value;
 };
 
+const parseExternalReference = (externalReference) => {
+  const [orderPart, userPart] = String(externalReference || "").split(":user:");
+
+  if (!orderPart || !userPart || !orderPart.startsWith("order:")) {
+    return null;
+  }
+
+  return {
+    orderId: Number(orderPart.replace("order:", "")),
+    userId: Number(userPart),
+  };
+};
+
 async function ensureOrderSchema() {
   try {
     await pool.query(`
@@ -69,11 +70,70 @@ async function ensureOrderSchema() {
       ADD COLUMN IF NOT EXISTS shipping_address JSONB,
       ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30),
       ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
+      ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS mp_preference_id VARCHAR(255);
     `);
   } catch (err) {
     console.error("No se pudo verificar esquema de órdenes", err.message);
   }
+}
+
+async function finalizeOrderWithStockValidation(client, { order, userId, paymentReference }) {
+  const cartResult = await client.query(
+    `SELECT c.product_id, c.quantity, p.price, p.stock, p.name
+     FROM cart_items c
+     JOIN products p ON c.product_id = p.id
+     WHERE c.user_id = $1
+     FOR UPDATE OF p`,
+    [userId],
+  );
+
+  const cart = cartResult.rows;
+
+  if (cart.length === 0) {
+    throw { status: 400, message: "No hay items para confirmar" };
+  }
+
+  const stockIssues = cart
+    .filter((item) => Number(item.stock) < Number(item.quantity))
+    .map((item) => ({
+      productId: item.product_id,
+      name: item.name,
+      available: Number(item.stock),
+      requested: Number(item.quantity),
+    }));
+
+  if (stockIssues.length > 0) {
+    throw {
+      status: 409,
+      message: "Stock insuficiente para algunos productos",
+      details: stockIssues,
+    };
+  }
+
+  for (const item of cart) {
+    await client.query(
+      `INSERT INTO order_items (order_id, product_id, quantity, price)
+       VALUES ($1, $2, $3, $4)`,
+      [order.id, item.product_id, item.quantity, item.price],
+    );
+
+    await client.query(`UPDATE products SET stock = stock - $1 WHERE id = $2`, [
+      item.quantity,
+      item.product_id,
+    ]);
+  }
+
+  await client.query(
+    `UPDATE orders
+     SET status = $1,
+         payment_reference = $2,
+         paid_at = NOW()
+     WHERE id = $3`,
+    [ORDER_STATUS.PAID, paymentReference, order.id],
+  );
+
+  await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
 }
 
 app.get("/users", async (req, res) => {
@@ -86,7 +146,7 @@ app.get("/products", async (req, res) => {
   res.json(result.rows);
 });
 
-app.post("/products", requireAdmin, async (req, res) => {
+app.post("/products", async (req, res) => {
   const { name, description, price, category, image, stock } = req.body;
 
   if (!name || !price || !category || !image) {
@@ -117,7 +177,7 @@ app.post("/products", requireAdmin, async (req, res) => {
   }
 });
 
-app.delete("/products/:id", requireAdmin, async (req, res) => {
+app.delete("/products/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -175,9 +235,9 @@ app.post("/orders", async (req, res) => {
       return res.status(400).json({ error: "userId es obligatorio" });
     }
 
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.zipCode || !shippingAddress.country) {
+    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.zipCode) {
       return res.status(400).json({
-        error: "Dirección incompleta. Requerido: street, city, zipCode, country",
+        error: "Dirección incompleta. Requerido: street, city, zipCode",
       });
     }
 
@@ -187,7 +247,7 @@ app.post("/orders", async (req, res) => {
     }
 
     const normalizedPaymentMethod = String(paymentMethod || "").trim().toLowerCase();
-    if (!["card", "mercadopago", "cash"].includes(normalizedPaymentMethod)) {
+    if (!["mercadopago", "cash"].includes(normalizedPaymentMethod)) {
       return res.status(400).json({ error: "Método de pago inválido" });
     }
 
@@ -210,13 +270,7 @@ app.post("/orders", async (req, res) => {
       0,
     );
 
-    const shippingCost =
-      normalizedShippingMethod === "express"
-        ? 9.99
-        : normalizedShippingMethod === "standard"
-          ? 4.99
-          : 0;
-
+    const shippingCost = normalizedShippingMethod === "home_delivery" ? 3000 : 0;
     const total = Number((subtotal + shippingCost).toFixed(2));
 
     const orderResult = await pool.query(
@@ -229,7 +283,7 @@ app.post("/orders", async (req, res) => {
         ORDER_STATUS.PENDING,
         normalizedShippingMethod,
         shippingCost,
-        JSON.stringify(shippingAddress),
+        JSON.stringify({ ...shippingAddress, country: "Argentina" }),
         normalizedPaymentMethod,
       ],
     );
@@ -245,13 +299,110 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-app.post("/orders/:orderId/confirm", async (req, res) => {
+app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
   const { orderId } = req.params;
-  const { userId, paymentToken, shippingReference } = req.body;
+  const { userId } = req.body;
 
-  if (!userId || !paymentToken || !shippingReference) {
+  if (!mercadopagoClient) {
+    return res.status(500).json({
+      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+    });
+  }
+
+  try {
+    const orderResult = await pool.query(
+      `SELECT * FROM orders WHERE id = $1 AND user_id = $2`,
+      [orderId, userId],
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: "Orden no encontrada" });
+    }
+
+    const order = orderResult.rows[0];
+
+    if (order.status !== ORDER_STATUS.PENDING) {
+      return res.status(409).json({
+        error: `La orden no puede pagarse en estado ${order.status}`,
+      });
+    }
+
+    if (order.payment_method !== "mercadopago") {
+      return res.status(400).json({
+        error: "La orden no fue creada con método Mercado Pago",
+      });
+    }
+
+    const cartResult = await pool.query(
+      `SELECT c.quantity, p.name, p.price
+       FROM cart_items c
+       JOIN products p ON p.id = c.product_id
+       WHERE c.user_id = $1`,
+      [userId],
+    );
+
+    if (cartResult.rows.length === 0) {
+      return res.status(400).json({ error: "No hay productos en carrito" });
+    }
+
+    const preference = new Preference(mercadopagoClient);
+
+    const externalReference = `order:${order.id}:user:${userId}`;
+
+    const preferenceResult = await preference.create({
+      body: {
+        items: [
+          ...cartResult.rows.map((item) => ({
+            title: item.name,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.price),
+            currency_id: "ARS",
+          })),
+          {
+            title:
+              order.shipping_method === "home_delivery"
+                ? "Envío a domicilio"
+                : "Retiro en local",
+            quantity: 1,
+            unit_price: Number(order.shipping_cost || 0),
+            currency_id: "ARS",
+          },
+        ],
+        external_reference: externalReference,
+        back_urls: {
+          success: `${FRONTEND_BASE_URL}/checkout?payment_status=success&order_id=${order.id}`,
+          pending: `${FRONTEND_BASE_URL}/checkout?payment_status=pending&order_id=${order.id}`,
+          failure: `${FRONTEND_BASE_URL}/checkout?payment_status=failure&order_id=${order.id}`,
+        },
+        auto_return: "approved",
+        notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+      },
+    });
+
+    await pool.query("UPDATE orders SET mp_preference_id = $1 WHERE id = $2", [
+      preferenceResult.id,
+      order.id,
+    ]);
+
+    return res.json({
+      init_point: preferenceResult.init_point,
+      sandbox_init_point: preferenceResult.sandbox_init_point,
+      preference_id: preferenceResult.id,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    return res.status(500).json({ error: "Error al crear preferencia de pago" });
+  }
+});
+
+app.post("/orders/:orderId/confirm-cash", async (req, res) => {
+  const { orderId } = req.params;
+  const { userId, shippingReference } = req.body;
+
+  if (!userId || !shippingReference) {
     return res.status(400).json({
-      error: "userId, paymentToken y shippingReference son obligatorios",
+      error: "userId y shippingReference son obligatorios",
     });
   }
 
@@ -266,108 +417,153 @@ app.post("/orders/:orderId/confirm", async (req, res) => {
     );
 
     if (orderResult.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Orden no encontrada" });
+      throw { status: 404, message: "Orden no encontrada" };
     }
 
     const order = orderResult.rows[0];
 
     if (order.status !== ORDER_STATUS.PENDING) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: `La orden no puede confirmarse en estado ${order.status}`,
-      });
+      throw {
+        status: 409,
+        message: `La orden no puede confirmarse en estado ${order.status}`,
+      };
     }
 
-    const cartResult = await client.query(
-      `SELECT c.product_id, c.quantity, p.price, p.stock, p.name
-       FROM cart_items c
-       JOIN products p ON c.product_id = p.id
-       WHERE c.user_id = $1
-       FOR UPDATE OF p`,
-      [userId],
-    );
-
-    const cart = cartResult.rows;
-
-    if (cart.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "No hay items para confirmar" });
-    }
-
-    const stockIssues = cart
-      .filter((item) => Number(item.stock) < Number(item.quantity))
-      .map((item) => ({
-        productId: item.product_id,
-        name: item.name,
-        available: Number(item.stock),
-        requested: Number(item.quantity),
-      }));
-
-    if (stockIssues.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: "Stock insuficiente para algunos productos",
-        details: stockIssues,
-      });
-    }
-
-    if (String(paymentToken).trim().length < 6) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Pago rechazado: token inválido",
-      });
+    if (order.payment_method !== "cash") {
+      throw {
+        status: 400,
+        message: "La orden no fue creada con método efectivo",
+      };
     }
 
     if (String(shippingReference).trim().length < 3) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Envío rechazado: referencia inválida",
-      });
+      throw {
+        status: 400,
+        message: "Envío rechazado: referencia inválida",
+      };
     }
 
-    for (const item of cart) {
-      await client.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price)
-         VALUES ($1, $2, $3, $4)`,
-        [order.id, item.product_id, item.quantity, item.price],
-      );
-
-      await client.query(
-        `UPDATE products SET stock = stock - $1 WHERE id = $2`,
-        [item.quantity, item.product_id],
-      );
-    }
-
-    await client.query(
-      `UPDATE orders
-       SET status = $1,
-           payment_reference = $2,
-           paid_at = NOW()
-       WHERE id = $3`,
-      [ORDER_STATUS.PAID, paymentToken, order.id],
-    );
-
-    await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
+    await finalizeOrderWithStockValidation(client, {
+      order,
+      userId,
+      paymentReference: `cash:${shippingReference}`,
+    });
 
     await client.query("COMMIT");
 
     return res.json({
-      message: "Orden confirmada y pagada",
+      message: "Orden confirmada en efectivo",
       orderId: order.id,
       status: ORDER_STATUS.PAID,
-      shippingReference,
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
-    return res.status(500).json({ error: "Error al confirmar orden" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Error al confirmar orden en efectivo",
+      details: err.details,
+    });
   } finally {
     client.release();
   }
 });
 
-app.patch("/orders/:orderId/status", requireAdmin, async (req, res) => {
+app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
+  const { orderId } = req.params;
+  const { userId, paymentId } = req.body;
+
+  if (!mercadopagoClient) {
+    return res.status(500).json({
+      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+    });
+  }
+
+  if (!userId || !paymentId) {
+    return res.status(400).json({
+      error: "userId y paymentId son obligatorios",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const orderResult = await client.query(
+      `SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+      [orderId, userId],
+    );
+
+    if (orderResult.rows.length === 0) {
+      throw { status: 404, message: "Orden no encontrada" };
+    }
+
+    const order = orderResult.rows[0];
+
+    if (order.status !== ORDER_STATUS.PENDING) {
+      throw {
+        status: 409,
+        message: `La orden no puede confirmarse en estado ${order.status}`,
+      };
+    }
+
+    if (order.payment_method !== "mercadopago") {
+      throw {
+        status: 400,
+        message: "La orden no fue creada con método Mercado Pago",
+      };
+    }
+
+    const payment = new Payment(mercadopagoClient);
+    const paymentInfo = await payment.get({ id: paymentId });
+
+    const referenceData = parseExternalReference(paymentInfo.external_reference);
+
+    if (!referenceData || referenceData.orderId !== Number(orderId) || referenceData.userId !== Number(userId)) {
+      throw {
+        status: 409,
+        message: "El pago no corresponde a la orden actual",
+      };
+    }
+
+    if (paymentInfo.status !== "approved") {
+      throw {
+        status: 409,
+        message: `El pago no está aprobado. Estado actual: ${paymentInfo.status}`,
+      };
+    }
+
+    await finalizeOrderWithStockValidation(client, {
+      order,
+      userId,
+      paymentReference: `mp:${paymentInfo.id}`,
+    });
+
+    await client.query("COMMIT");
+
+    return res.json({
+      message: "Orden confirmada y pagada con Mercado Pago",
+      orderId: order.id,
+      status: ORDER_STATUS.PAID,
+      paymentId: paymentInfo.id,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    return res.status(err.status || 500).json({
+      error: err.message || "Error al confirmar orden con Mercado Pago",
+      details: err.details,
+    });
+  } finally {
+    client.release();
+  }
+});
+
+app.post("/payments/mercadopago/webhook", async (req, res) => {
+  // endpoint requerido para Checkout Pro; se confirma pago desde frontend con payment_id
+  return res.sendStatus(200);
+});
+
+app.patch("/orders/:orderId/status", async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
 
@@ -519,6 +715,7 @@ app.get("/orders/:userId", async (req, res) => {
       o.shipping_method,
       o.shipping_cost,
       o.shipping_address,
+      o.payment_method,
       oi.quantity,
       oi.price,
       p.name

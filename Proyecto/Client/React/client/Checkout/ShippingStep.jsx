@@ -1,8 +1,7 @@
 function ShippingStep({ shippingMethod, onChange }) {
   const options = [
-    { value: "standard", label: "Standard (2-5 días) - $4.99" },
-    { value: "express", label: "Express (24hs) - $9.99" },
-    { value: "pickup", label: "Retiro en tienda - $0" },
+    { value: "home_delivery", label: "Envío a domicilio - $3.000" },
+    { value: "pickup", label: "Retirar en local - $0" },
   ];
 
   return (

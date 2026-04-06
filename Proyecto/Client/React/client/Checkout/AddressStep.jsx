@@ -1,7 +1,7 @@
 function AddressStep({ address, onChange }) {
   return (
     <section className="checkout-step">
-      <h3>1. Dirección</h3>
+      <h3>1. Dirección (Argentina)</h3>
       <div className="checkout-grid">
         <input
           placeholder="Calle y número"
@@ -14,7 +14,7 @@ function AddressStep({ address, onChange }) {
           onChange={(e) => onChange("city", e.target.value)}
         />
         <input
-          placeholder="Provincia/Estado"
+          placeholder="Provincia"
           value={address.state}
           onChange={(e) => onChange("state", e.target.value)}
         />
@@ -22,11 +22,6 @@ function AddressStep({ address, onChange }) {
           placeholder="Código postal"
           value={address.zipCode}
           onChange={(e) => onChange("zipCode", e.target.value)}
-        />
-        <input
-          placeholder="País"
-          value={address.country}
-          onChange={(e) => onChange("country", e.target.value)}
         />
       </div>
     </section>
