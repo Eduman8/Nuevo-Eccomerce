@@ -400,6 +400,7 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
       preference_id: preferenceResult.id,
     });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     return res.status(500).json({ error: "Error al crear preferencia de pago" });
   }
