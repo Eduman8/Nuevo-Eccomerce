@@ -4,7 +4,7 @@ import Orders from "../Pages/Orders";
 import CategoryPage from "../CategoryPage/CategoryPage";
 import ProtectedRoute from "../ProtectedRoute";
 import Navbar from "../Navbar/Navbar";
-import { CartProvider } from "../Context/CartContext";
+import { CartProvider } from "../Context/CartContext.jsx";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
 
