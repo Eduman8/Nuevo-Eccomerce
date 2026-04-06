@@ -11,7 +11,7 @@ function PaymentStep({ paymentMethod, onMethodChange }) {
             checked={paymentMethod === "mercadopago"}
             onChange={(e) => onMethodChange(e.target.value)}
           />
-          Mercado Pago (Checkout Pro)
+          Mercado Pago
         </label>
         <label>
           <input

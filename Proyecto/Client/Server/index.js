@@ -19,11 +19,15 @@ const ORDER_STATUS = {
 };
 
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
-const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
-const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:3000";
+const MP_ACCESS_TOKEN =
+  process.env.MP_ACCESS_TOKEN ||
+  "APP_USR-8513299986873643-040615-40f4cb460976cfc16bb8b2c95970d9c9-3318954990";
+const FRONTEND_BASE_URL =
+  process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+const BACKEND_BASE_URL =
+  process.env.BACKEND_BASE_URL || "http://localhost:3000";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "eduman.000@gmail.com")
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
@@ -39,7 +43,9 @@ const mercadopagoClient = MP_ACCESS_TOKEN
 
 const normalizeShippingMethod = (value) => {
   const allowed = ["home_delivery", "pickup"];
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   return allowed.includes(normalized) ? normalized : null;
 };
 
@@ -88,7 +94,10 @@ async function ensureOrderSchema() {
   }
 }
 
-async function finalizeOrderWithStockValidation(client, { order, userId, paymentReference }) {
+async function finalizeOrderWithStockValidation(
+  client,
+  { order, userId, paymentReference },
+) {
   const cartResult = await client.query(
     `SELECT c.product_id, c.quantity, p.price, p.stock, p.name
      FROM cart_items c
@@ -245,7 +254,12 @@ app.post("/orders", async (req, res) => {
       return res.status(400).json({ error: "userId es obligatorio" });
     }
 
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.zipCode) {
+    if (
+      !shippingAddress ||
+      !shippingAddress.street ||
+      !shippingAddress.city ||
+      !shippingAddress.zipCode
+    ) {
       return res.status(400).json({
         error: "Dirección incompleta. Requerido: street, city, zipCode",
       });
@@ -256,7 +270,9 @@ app.post("/orders", async (req, res) => {
       return res.status(400).json({ error: "Método de envío inválido" });
     }
 
-    const normalizedPaymentMethod = String(paymentMethod || "").trim().toLowerCase();
+    const normalizedPaymentMethod = String(paymentMethod || "")
+      .trim()
+      .toLowerCase();
     if (!["mercadopago", "cash"].includes(normalizedPaymentMethod)) {
       return res.status(400).json({ error: "Método de pago inválido" });
     }
@@ -280,7 +296,8 @@ app.post("/orders", async (req, res) => {
       0,
     );
 
-    const shippingCost = normalizedShippingMethod === "home_delivery" ? 3000 : 0;
+    const shippingCost =
+      normalizedShippingMethod === "home_delivery" ? 3000 : 0;
     const total = Number((subtotal + shippingCost).toFixed(2));
 
     const orderResult = await pool.query(
@@ -315,7 +332,8 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
 
   if (!mercadopagoClient) {
     return res.status(500).json({
-      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+      error:
+        "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
     });
   }
 
@@ -402,7 +420,9 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    return res.status(500).json({ error: "Error al crear preferencia de pago" });
+    return res
+      .status(500)
+      .json({ error: "Error al crear preferencia de pago" });
   }
 });
 
@@ -483,7 +503,8 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 
   if (!mercadopagoClient) {
     return res.status(500).json({
-      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+      error:
+        "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
     });
   }
 
@@ -526,9 +547,15 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
     const payment = new Payment(mercadopagoClient);
     const paymentInfo = await payment.get({ id: paymentId });
 
-    const referenceData = parseExternalReference(paymentInfo.external_reference);
+    const referenceData = parseExternalReference(
+      paymentInfo.external_reference,
+    );
 
-    if (!referenceData || referenceData.orderId !== Number(orderId) || referenceData.userId !== Number(userId)) {
+    if (
+      !referenceData ||
+      referenceData.orderId !== Number(orderId) ||
+      referenceData.userId !== Number(userId)
+    ) {
       throw {
         status: 409,
         message: "El pago no corresponde a la orden actual",
@@ -604,7 +631,9 @@ app.post("/auth/google", async (req, res) => {
   const { name, email } = req.body;
 
   try {
-    let user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    let user = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (user.rows.length === 0) {
       user = await pool.query(
