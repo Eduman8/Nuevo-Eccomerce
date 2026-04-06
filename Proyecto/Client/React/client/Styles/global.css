@@ -1,26 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 :root {
-  /* LIGHT MODE */
-  --bg: #f4f6fb;
+  --bg: #f4f7ff;
+  --bg-soft: #eef3ff;
   --card: #ffffff;
-  --text: #1f2937;
-  --secondary: #6b7280;
-  --border: #dbe2ea;
-  --primary: #6366f1;
-  --accent: #22c55e;
-  --bg-navbar: #ffffff;
-  --bg-card: #ffffff;
+  --text: #182033;
+  --text-muted: #5c667d;
+  --border: #d9e1f3;
+  --primary: #4f46e5;
+  --primary-strong: #3730a3;
+  --accent: #f59e0b;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --shadow: 0 10px 30px rgba(55, 76, 120, 0.14);
 }
 
-[data-theme="dark"] {
-  --bg: #0b0f19;
-  --card: #111827;
-  --text: #e5e7eb;
-  --secondary: #9ca3af;
-  --border: #1f2933;
-  --primary: #6366f1;
-  --accent: #22c55e;
-  --bg-navbar: #111827;
-  --bg-card: #111827;
+[data-theme='dark'] {
+  --bg: #0b1220;
+  --bg-soft: #111a2f;
+  --card: #18243b;
+  --text: #f2f6ff;
+  --text-muted: #aeb9cd;
+  --border: #273654;
+  --primary: #818cf8;
+  --primary-strong: #6366f1;
+  --accent: #fbbf24;
+  --danger: #f87171;
+  --success: #4ade80;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -29,11 +36,61 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
-  background: var(--bg);
+  background: radial-gradient(circle at top right, var(--bg-soft) 0%, var(--bg) 45%);
   color: var(--text);
-  font-family: "Inter", sans-serif;
-  transition: background 0.3s ease, color 0.3s ease;
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+strong {
+  color: var(--text);
+}
+
+p,
+span,
+small,
+label,
+a,
+button,
+input,
+select {
+  color: inherit;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 420px) {
+  body {
+    font-size: 14px;
+  }
 }
 
 
