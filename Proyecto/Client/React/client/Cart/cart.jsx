@@ -1,7 +1,9 @@
 import "./Cart.css";
 import { useCart } from "../Hooks/useCart";
+import { useNavigate } from "react-router-dom";
 
 function Cart() {
+  const navigate = useNavigate();
   const { cart, removeFromCart, total, checkout } = useCart();
 
   return (
@@ -25,7 +27,7 @@ function Cart() {
 
           <h3>Total: ${total}</h3>
 
-          <button onClick={checkout}>Comprar</button>
+          <button onClick={() => { checkout(); navigate("/checkout"); }}>Ir al checkout</button>
         </>
       )}
     </div>
