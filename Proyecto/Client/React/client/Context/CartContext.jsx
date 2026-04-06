@@ -1,9 +1,10 @@
-import { createContext, useState, useEffect } from "react";
-
-export const CartContext = createContext();
+import { useState, useEffect } from "react";
+import { CartContext } from "./cartContext";
+import { useNotification } from "../Hooks/useNotification";
 
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
+  const { info, warning, error: notifyError } = useNotification();
 
   useEffect(() => {
     if (!user) {
@@ -20,7 +21,10 @@ export function CartProvider({ children, user }) {
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const addToCart = (product) => {
-    if (!user) return alert("Tenés que iniciar sesión");
+    if (!user) {
+      warning("Tenés que iniciar sesión para agregar productos al carrito.");
+      return;
+    }
 
     fetch("http://localhost:3000/cart", {
       method: "POST",
@@ -36,20 +40,32 @@ export function CartProvider({ children, user }) {
       .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
       .then((res) => res.json())
       .then(setCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo agregar el producto al carrito.");
+      });
   };
 
-  const refreshCart = () =>
-    fetch(`http://localhost:3000/cart/${user.id}`)
+  const refreshCart = () => {
+    if (!user) return Promise.resolve([]);
+
+    return fetch(`http://localhost:3000/cart/${user.id}`)
       .then((res) => res.json())
-      .then(setCart);
+      .then((items) => {
+        setCart(items);
+        return items;
+      });
+  };
 
   const removeFromCart = (cartItemId) => {
     fetch(`http://localhost:3000/cart/${cartItemId}`, {
       method: "DELETE",
     })
       .then(refreshCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo eliminar el producto del carrito.");
+      });
   };
 
   const decreaseFromCart = (cartItemId) => {
@@ -57,24 +73,121 @@ export function CartProvider({ children, user }) {
       method: "PATCH",
     })
       .then(refreshCart)
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        notifyError("No se pudo actualizar la cantidad del producto.");
+      });
   };
 
-  const checkout = () => {
-    if (!user) return;
+  const createPendingOrder = async (checkoutData) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para continuar.");
+    }
 
-    fetch("http://localhost:3000/orders", {
+    const response = await fetch("http://localhost:3000/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ userId: user.id }),
-    })
-      .then(() => {
-        alert("Compra realizada");
-        setCart([]);
-      })
-      .catch(console.error);
+      body: JSON.stringify({
+        userId: user.id,
+        ...checkoutData,
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo iniciar la compra.");
+    }
+
+    return payload;
+  };
+
+  const createMercadoPagoPreference = async (orderId) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para pagar.");
+    }
+
+    const response = await fetch(
+      `http://localhost:3000/orders/${orderId}/checkout-pro-preference`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: user.id }),
+      },
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo crear la preferencia de pago.");
+    }
+
+    return payload;
+  };
+
+  const confirmCashOrder = async ({ orderId, shippingReference }) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para confirmar.");
+    }
+
+    const response = await fetch(`http://localhost:3000/orders/${orderId}/confirm-cash`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        shippingReference,
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo confirmar la compra en efectivo.");
+    }
+
+    await refreshCart();
+
+    return payload;
+  };
+
+  const confirmMercadoPagoOrder = async ({ orderId, paymentId }) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para confirmar.");
+    }
+
+    const response = await fetch(
+      `http://localhost:3000/orders/${orderId}/confirm-mercadopago`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          paymentId,
+        }),
+      },
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "No se pudo confirmar el pago de Mercado Pago.");
+    }
+
+    await refreshCart();
+
+    return payload;
+  };
+
+  const checkout = () => {
+    info("Ahora el checkout se realiza desde la pantalla /checkout.");
   };
 
   return (
@@ -86,6 +199,11 @@ export function CartProvider({ children, user }) {
         removeFromCart,
         checkout,
         decreaseFromCart,
+        createPendingOrder,
+        createMercadoPagoPreference,
+        confirmCashOrder,
+        confirmMercadoPagoOrder,
+        refreshCart,
       }}
     >
       {children}
