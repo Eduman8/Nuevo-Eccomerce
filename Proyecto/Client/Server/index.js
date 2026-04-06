@@ -3,9 +3,10 @@ const app = express();
 const pool = require("./db");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const path = require("path");
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 app.use(express.json());
 app.use(cors());
@@ -19,7 +20,13 @@ const ORDER_STATUS = {
 };
 
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
-const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
+const getMercadoPagoAccessToken = () => {
+  const token = process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN;
+  return token ? String(token).trim() : "";
+};
+
+const MP_ACCESS_TOKEN = getMercadoPagoAccessToken();
+const PORT = Number(process.env.PORT || 3000);
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:3000";
 
@@ -36,6 +43,8 @@ const isAdminEmail = (email) => {
 const mercadopagoClient = MP_ACCESS_TOKEN
   ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN })
   : null;
+
+const hasValidMercadoPagoTokenFormat = (token) => /^TEST-|^APP_USR-/.test(String(token || ""));
 
 const normalizeShippingMethod = (value) => {
   const allowed = ["home_delivery", "pickup"];
@@ -315,7 +324,15 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
 
   if (!mercadopagoClient) {
     return res.status(500).json({
-      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+      error:
+        "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
+    });
+  }
+
+  if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+    return res.status(500).json({
+      error:
+        "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
     });
   }
 
@@ -400,7 +417,6 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
       preference_id: preferenceResult.id,
     });
   } catch (err) {
-    await client.query("ROLLBACK");
     console.error(err);
     return res.status(500).json({ error: "Error al crear preferencia de pago" });
   }
@@ -483,7 +499,15 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 
   if (!mercadopagoClient) {
     return res.status(500).json({
-      error: "Mercado Pago no configurado. Falta MP_ACCESS_TOKEN en el backend.",
+      error:
+        "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
+    });
+  }
+
+  if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+    return res.status(500).json({
+      error:
+        "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
     });
   }
 
@@ -571,6 +595,22 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 app.post("/payments/mercadopago/webhook", async (req, res) => {
   // endpoint requerido para Checkout Pro; se confirma pago desde frontend con payment_id
   return res.sendStatus(200);
+});
+
+app.get("/payments/mercadopago/status", (_req, res) => {
+  const configured = Boolean(mercadopagoClient);
+
+  return res.json({
+    configured,
+    tokenSource: process.env.MP_ACCESS_TOKEN
+      ? "MP_ACCESS_TOKEN"
+      : process.env.MERCADOPAGO_ACCESS_TOKEN
+        ? "MERCADOPAGO_ACCESS_TOKEN"
+        : null,
+    tokenFormatValid: configured ? hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN) : false,
+    backendBaseUrl: BACKEND_BASE_URL,
+    frontendBaseUrl: FRONTEND_BASE_URL,
+  });
 });
 
 app.patch("/orders/:orderId/status", async (req, res) => {
@@ -779,7 +819,17 @@ app.patch("/products/:id", async (req, res) => {
 });
 
 ensureOrderSchema().finally(() => {
-  app.listen(3000, () => {
-    console.log("Servidor en puerto 3000");
+  app.listen(PORT, () => {
+    if (!MP_ACCESS_TOKEN) {
+      console.warn(
+        "[Mercado Pago] No hay access token configurado. Definí MP_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN.",
+      );
+    } else if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+      console.warn(
+        "[Mercado Pago] Access token con formato inválido. Debe comenzar con TEST- o APP_USR-.",
+      );
+    }
+
+    console.log(`Servidor en puerto ${PORT}`);
   });
 });

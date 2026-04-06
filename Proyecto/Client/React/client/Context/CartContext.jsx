@@ -5,6 +5,25 @@ import { useNotification } from "../Hooks/useNotification";
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
   const { info, warning, error: notifyError } = useNotification();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  const normalizeCartPayload = (payload) => (Array.isArray(payload) ? payload : []);
+  const parseJsonResponse = async (res) => {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
+  const requestJson = async (url, options = {}, defaultErrorMessage = "Ocurrió un error de red.") => {
+    const res = await fetch(url, options);
+    const payload = await parseJsonResponse(res);
+
+    if (!res.ok) {
+      throw new Error(payload?.error || defaultErrorMessage);
+    }
+
+    return payload;
+  };
 
   useEffect(() => {
     if (!user) {
@@ -12,13 +31,24 @@ export function CartProvider({ children, user }) {
       return;
     }
 
-    fetch(`http://localhost:3000/cart/${user.id}`)
-      .then((res) => res.json())
+    requestJson(
+      `${API_BASE_URL}/cart/${user.id}`,
+      {},
+      "No se pudo cargar el carrito.",
+    )
+      .then((payload) => normalizeCartPayload(payload))
       .then(setCart)
-      .catch(console.error);
-  }, [user]);
+      .catch((err) => {
+        console.error(err);
+        setCart([]);
+      });
+  }, [user, API_BASE_URL]);
 
-  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const safeCart = Array.isArray(cart) ? cart : [];
+  const total = safeCart.reduce(
+    (acc, item) => acc + Number(item.price) * Number(item.quantity),
+    0,
+  );
 
   const addToCart = (product) => {
     if (!user) {
@@ -26,20 +56,22 @@ export function CartProvider({ children, user }) {
       return;
     }
 
-    fetch("http://localhost:3000/cart", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    requestJson(
+      `${API_BASE_URL}/cart`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          productId: product.id,
+          quantity: 1,
+        }),
       },
-      body: JSON.stringify({
-        userId: user.id,
-        productId: product.id,
-        quantity: 1,
-      }),
-    })
-      .then(() => fetch(`http://localhost:3000/cart/${user.id}`))
-      .then((res) => res.json())
-      .then(setCart)
+      "No se pudo agregar el producto al carrito.",
+    )
+      .then(refreshCart)
       .catch((err) => {
         console.error(err);
         notifyError("No se pudo agregar el producto al carrito.");
@@ -49,18 +81,29 @@ export function CartProvider({ children, user }) {
   const refreshCart = () => {
     if (!user) return Promise.resolve([]);
 
-    return fetch(`http://localhost:3000/cart/${user.id}`)
-      .then((res) => res.json())
+    return requestJson(
+      `${API_BASE_URL}/cart/${user.id}`,
+      {},
+      "No se pudo actualizar el carrito.",
+    )
+      .then((payload) => normalizeCartPayload(payload))
       .then((items) => {
         setCart(items);
         return items;
+      })
+      .catch((err) => {
+        console.error(err);
+        setCart([]);
+        return [];
       });
   };
 
   const removeFromCart = (cartItemId) => {
-    fetch(`http://localhost:3000/cart/${cartItemId}`, {
-      method: "DELETE",
-    })
+    requestJson(
+      `${API_BASE_URL}/cart/${cartItemId}`,
+      { method: "DELETE" },
+      "No se pudo eliminar el producto del carrito.",
+    )
       .then(refreshCart)
       .catch((err) => {
         console.error(err);
@@ -69,9 +112,11 @@ export function CartProvider({ children, user }) {
   };
 
   const decreaseFromCart = (cartItemId) => {
-    fetch(`http://localhost:3000/cart/${cartItemId}/decrease`, {
-      method: "PATCH",
-    })
+    requestJson(
+      `${API_BASE_URL}/cart/${cartItemId}/decrease`,
+      { method: "PATCH" },
+      "No se pudo actualizar la cantidad del producto.",
+    )
       .then(refreshCart)
       .catch((err) => {
         console.error(err);
@@ -84,24 +129,20 @@ export function CartProvider({ children, user }) {
       throw new Error("Debes iniciar sesión para continuar.");
     }
 
-    const response = await fetch("http://localhost:3000/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    return requestJson(
+      `${API_BASE_URL}/orders`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          ...checkoutData,
+        }),
       },
-      body: JSON.stringify({
-        userId: user.id,
-        ...checkoutData,
-      }),
-    });
-
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "No se pudo iniciar la compra.");
-    }
-
-    return payload;
+      "No se pudo iniciar la compra.",
+    );
   };
 
   const createMercadoPagoPreference = async (orderId) => {
@@ -109,8 +150,8 @@ export function CartProvider({ children, user }) {
       throw new Error("Debes iniciar sesión para pagar.");
     }
 
-    const response = await fetch(
-      `http://localhost:3000/orders/${orderId}/checkout-pro-preference`,
+    return requestJson(
+      `${API_BASE_URL}/orders/${orderId}/checkout-pro-preference`,
       {
         method: "POST",
         headers: {
@@ -118,15 +159,8 @@ export function CartProvider({ children, user }) {
         },
         body: JSON.stringify({ userId: user.id }),
       },
+      "No se pudo crear la preferencia de pago.",
     );
-
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "No se pudo crear la preferencia de pago.");
-    }
-
-    return payload;
   };
 
   const confirmCashOrder = async ({ orderId, shippingReference }) => {
@@ -134,22 +168,20 @@ export function CartProvider({ children, user }) {
       throw new Error("Debes iniciar sesión para confirmar.");
     }
 
-    const response = await fetch(`http://localhost:3000/orders/${orderId}/confirm-cash`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const payload = await requestJson(
+      `${API_BASE_URL}/orders/${orderId}/confirm-cash`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          shippingReference,
+        }),
       },
-      body: JSON.stringify({
-        userId: user.id,
-        shippingReference,
-      }),
-    });
-
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "No se pudo confirmar la compra en efectivo.");
-    }
+      "No se pudo confirmar la compra en efectivo.",
+    );
 
     await refreshCart();
 
@@ -161,8 +193,8 @@ export function CartProvider({ children, user }) {
       throw new Error("Debes iniciar sesión para confirmar.");
     }
 
-    const response = await fetch(
-      `http://localhost:3000/orders/${orderId}/confirm-mercadopago`,
+    const payload = await requestJson(
+      `${API_BASE_URL}/orders/${orderId}/confirm-mercadopago`,
       {
         method: "POST",
         headers: {
@@ -173,13 +205,8 @@ export function CartProvider({ children, user }) {
           paymentId,
         }),
       },
+      "No se pudo confirmar el pago de Mercado Pago.",
     );
-
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "No se pudo confirmar el pago de Mercado Pago.");
-    }
 
     await refreshCart();
 
