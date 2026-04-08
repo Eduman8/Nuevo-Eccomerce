@@ -39,10 +39,12 @@ function CheckoutPage({ user }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const paymentStatus = params.get("payment_status");
+    const status = params.get("status") || params.get("collection_status");
     const paymentId = params.get("payment_id") || params.get("collection_id");
     const orderId = params.get("order_id") || params.get("external_reference");
+    const isApprovedReturn = paymentStatus === "success" || status === "approved";
 
-    if (!paymentStatus || paymentStatus !== "success" || !paymentId || !orderId || !user || mpConfirmed) {
+    if (!isApprovedReturn || !paymentId || !orderId || !user || mpConfirmed) {
       return;
     }
 
