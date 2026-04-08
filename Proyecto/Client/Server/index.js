@@ -81,6 +81,15 @@ const parseExternalReference = (externalReference) => {
   };
 };
 
+const canUseMercadoPagoAutoReturn = (url) => {
+  try {
+    const parsed = new URL(String(url || ""));
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 async function ensureOrderSchema() {
   try {
     await pool.query(`
@@ -467,34 +476,43 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
 
     const externalReference = `order:${order.id}:user:${userId}`;
 
-    const preferenceResult = await preference.create({
-      body: {
-        items: [
-          ...cartResult.rows.map((item) => ({
-            title: item.name,
-            quantity: Number(item.quantity),
-            unit_price: Number(item.price),
-            currency_id: "ARS",
-          })),
-          {
-            title:
-              order.shipping_method === "home_delivery"
-                ? "Envío a domicilio"
-                : "Retiro en local",
-            quantity: 1,
-            unit_price: Number(order.shipping_cost || 0),
-            currency_id: "ARS",
-          },
-        ],
-        external_reference: externalReference,
-        back_urls: {
-          success: `${FRONTEND_BASE_URL}/checkout?payment_status=success&order_id=${order.id}`,
-          pending: `${FRONTEND_BASE_URL}/checkout?payment_status=pending&order_id=${order.id}`,
-          failure: `${FRONTEND_BASE_URL}/checkout?payment_status=failure&order_id=${order.id}`,
+    const successBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=success&order_id=${order.id}`;
+    const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=pending&order_id=${order.id}`;
+    const failureBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=failure&order_id=${order.id}`;
+
+    const preferenceBody = {
+      items: [
+        ...cartResult.rows.map((item) => ({
+          title: item.name,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.price),
+          currency_id: "ARS",
+        })),
+        {
+          title:
+            order.shipping_method === "home_delivery"
+              ? "Envío a domicilio"
+              : "Retiro en local",
+          quantity: 1,
+          unit_price: Number(order.shipping_cost || 0),
+          currency_id: "ARS",
         },
-        auto_return: "approved",
-        notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+      ],
+      external_reference: externalReference,
+      back_urls: {
+        success: successBackUrl,
+        pending: pendingBackUrl,
+        failure: failureBackUrl,
       },
+      notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+    };
+
+    if (canUseMercadoPagoAutoReturn(successBackUrl)) {
+      preferenceBody.auto_return = "approved";
+    }
+
+    const preferenceResult = await preference.create({
+      body: preferenceBody,
     });
 
     await pool.query("UPDATE orders SET mp_preference_id = $1 WHERE id = $2", [
