@@ -200,10 +200,16 @@ export function CartProvider({ children, user }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          userId: user.id,
-          paymentId,
-        }),
+        body: JSON.stringify(
+          paymentId
+            ? {
+              userId: user.id,
+              paymentId,
+            }
+            : {
+              userId: user.id,
+            },
+        ),
       },
       "No se pudo confirmar el pago de Mercado Pago.",
     );
