@@ -9,6 +9,7 @@ const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 const ORDER_STATUS = {
@@ -88,6 +89,37 @@ const canUseMercadoPagoAutoReturn = (url) => {
   } catch {
     return false;
   }
+};
+
+const extractMercadoPagoPaymentId = (req) => {
+  const fromQuery =
+    req.query?.["data.id"] ||
+    req.query?.data_id ||
+    req.query?.id;
+
+  const fromBody = req.body?.data?.id || req.body?.id;
+
+  const resource = req.body?.resource || req.query?.resource;
+  const fromResource = resource
+    ? String(resource).match(/\/v1\/payments\/(\d+)/)?.[1]
+    : null;
+
+  return fromQuery || fromBody || fromResource || null;
+};
+
+const extractMercadoPagoTopic = (req) => {
+  const directTopic = req.query?.type || req.query?.topic || req.body?.type || req.body?.topic;
+
+  if (directTopic) {
+    return String(directTopic).toLowerCase();
+  }
+
+  const action = String(req.body?.action || "").toLowerCase();
+  if (action.startsWith("payment.")) {
+    return "payment";
+  }
+
+  return null;
 };
 
 async function ensureOrderSchema() {
@@ -663,15 +695,15 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
   }
 });
 
-app.post("/payments/mercadopago/webhook", async (req, res) => {
+app.all("/payments/mercadopago/webhook", async (req, res) => {
   if (!mercadopagoClient || !hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
     return res.sendStatus(200);
   }
 
-  const type = req.query.type || req.body?.type;
-  const dataId = req.query["data.id"] || req.body?.data?.id;
+  const topic = extractMercadoPagoTopic(req);
+  const dataId = extractMercadoPagoPaymentId(req);
 
-  if (type !== "payment" || !dataId) {
+  if (topic !== "payment" || !dataId) {
     return res.sendStatus(200);
   }
 
