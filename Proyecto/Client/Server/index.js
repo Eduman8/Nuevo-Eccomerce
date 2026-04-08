@@ -659,9 +659,9 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
     });
   }
 
-  if (!userId || !paymentId) {
+  if (!userId) {
     return res.status(400).json({
-      error: "userId y paymentId son obligatorios",
+      error: "userId es obligatorio",
     });
   }
 
