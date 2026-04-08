@@ -160,6 +160,84 @@ async function finalizeOrderWithStockValidation(
   await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
 }
 
+async function confirmMercadoPagoPayment({
+  client,
+  paymentId,
+  expectedOrderId = null,
+  expectedUserId = null,
+}) {
+  const payment = new Payment(mercadopagoClient);
+  const paymentInfo = await payment.get({ id: paymentId });
+
+  const referenceData = parseExternalReference(paymentInfo.external_reference);
+
+  if (!referenceData) {
+    throw {
+      status: 409,
+      message: "El pago no tiene una referencia de orden válida",
+    };
+  }
+
+  if (expectedOrderId && referenceData.orderId !== Number(expectedOrderId)) {
+    throw {
+      status: 409,
+      message: "El pago no corresponde a la orden actual",
+    };
+  }
+
+  if (expectedUserId && referenceData.userId !== Number(expectedUserId)) {
+    throw {
+      status: 409,
+      message: "El pago no corresponde al usuario actual",
+    };
+  }
+
+  const orderResult = await client.query(
+    `SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+    [referenceData.orderId, referenceData.userId],
+  );
+
+  if (orderResult.rows.length === 0) {
+    throw { status: 404, message: "Orden no encontrada" };
+  }
+
+  const order = orderResult.rows[0];
+
+  if (order.payment_method !== "mercadopago") {
+    throw {
+      status: 400,
+      message: "La orden no fue creada con método Mercado Pago",
+    };
+  }
+
+  if (order.status !== ORDER_STATUS.PENDING) {
+    return {
+      order,
+      paymentInfo,
+      alreadyProcessed: true,
+    };
+  }
+
+  if (paymentInfo.status !== "approved") {
+    throw {
+      status: 409,
+      message: `El pago no está aprobado. Estado actual: ${paymentInfo.status}`,
+    };
+  }
+
+  await finalizeOrderWithStockValidation(client, {
+    order,
+    userId: referenceData.userId,
+    paymentReference: `mp:${paymentInfo.id}`,
+  });
+
+  return {
+    order,
+    paymentInfo,
+    alreadyProcessed: false,
+  };
+}
+
 app.get("/users", async (req, res) => {
   const result = await pool.query("SELECT * FROM users");
   res.json(result.rows);
@@ -536,70 +614,24 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 
   try {
     await client.query("BEGIN");
-
-    const orderResult = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-      [orderId, userId],
-    );
-
-    if (orderResult.rows.length === 0) {
-      throw { status: 404, message: "Orden no encontrada" };
-    }
-
-    const order = orderResult.rows[0];
-
-    if (order.status !== ORDER_STATUS.PENDING) {
-      throw {
-        status: 409,
-        message: `La orden no puede confirmarse en estado ${order.status}`,
-      };
-    }
-
-    if (order.payment_method !== "mercadopago") {
-      throw {
-        status: 400,
-        message: "La orden no fue creada con método Mercado Pago",
-      };
-    }
-
-    const payment = new Payment(mercadopagoClient);
-    const paymentInfo = await payment.get({ id: paymentId });
-
-    const referenceData = parseExternalReference(
-      paymentInfo.external_reference,
-    );
-
-    if (
-      !referenceData ||
-      referenceData.orderId !== Number(orderId) ||
-      referenceData.userId !== Number(userId)
-    ) {
-      throw {
-        status: 409,
-        message: "El pago no corresponde a la orden actual",
-      };
-    }
-
-    if (paymentInfo.status !== "approved") {
-      throw {
-        status: 409,
-        message: `El pago no está aprobado. Estado actual: ${paymentInfo.status}`,
-      };
-    }
-
-    await finalizeOrderWithStockValidation(client, {
-      order,
-      userId,
-      paymentReference: `mp:${paymentInfo.id}`,
+    const confirmation = await confirmMercadoPagoPayment({
+      client,
+      paymentId,
+      expectedOrderId: orderId,
+      expectedUserId: userId,
     });
 
     await client.query("COMMIT");
 
     return res.json({
-      message: "Orden confirmada y pagada con Mercado Pago",
-      orderId: order.id,
-      status: ORDER_STATUS.PAID,
-      paymentId: paymentInfo.id,
+      message: confirmation.alreadyProcessed
+        ? `La orden ya estaba confirmada en estado ${confirmation.order.status}`
+        : "Orden confirmada y pagada con Mercado Pago",
+      orderId: confirmation.order.id,
+      status: confirmation.alreadyProcessed
+        ? confirmation.order.status
+        : ORDER_STATUS.PAID,
+      paymentId: confirmation.paymentInfo.id,
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -614,7 +646,33 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 });
 
 app.post("/payments/mercadopago/webhook", async (req, res) => {
-  // endpoint requerido para Checkout Pro; se confirma pago desde frontend con payment_id
+  if (!mercadopagoClient || !hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+    return res.sendStatus(200);
+  }
+
+  const type = req.query.type || req.body?.type;
+  const dataId = req.query["data.id"] || req.body?.data?.id;
+
+  if (type !== "payment" || !dataId) {
+    return res.sendStatus(200);
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await confirmMercadoPagoPayment({
+      client,
+      paymentId: dataId,
+    });
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error procesando webhook de Mercado Pago", err.message);
+  } finally {
+    client.release();
+  }
+
   return res.sendStatus(200);
 });
 
