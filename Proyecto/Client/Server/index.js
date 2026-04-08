@@ -541,11 +541,11 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
         pending: pendingBackUrl,
         failure: failureBackUrl,
       },
-      notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+      // notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
     };
 
     if (canUseMercadoPagoAutoReturn(successBackUrl)) {
-      preferenceBody.auto_return = "approved";
+      // preferenceBody.auto_return = "approved";
     }
 
     const preferenceResult = await preference.create({
