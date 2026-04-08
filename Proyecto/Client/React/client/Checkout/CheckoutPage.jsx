@@ -44,7 +44,7 @@ function CheckoutPage({ user }) {
     const orderId = params.get("order_id") || params.get("external_reference");
     const isApprovedReturn = paymentStatus === "success" || status === "approved";
 
-    if (!isApprovedReturn || !orderId || !user || mpConfirmed) {
+    if (!isApprovedReturn || !paymentId || !orderId || !user || mpConfirmed) {
       return;
     }
 

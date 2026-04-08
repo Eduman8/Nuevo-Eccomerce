@@ -82,6 +82,20 @@ const parseExternalReference = (externalReference) => {
   };
 };
 
+const canUseMercadoPagoAutoReturn = (url) => {
+  try {
+    const parsed = new URL(String(url || ""));
+    const isHttps = parsed.protocol === "https:";
+    const isLocalhost =
+      parsed.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+
+    return isHttps || isLocalhost;
+  } catch {
+    return false;
+  }
+};
+
 const extractMercadoPagoPaymentId = (req) => {
   const fromQuery =
     req.query?.["data.id"] ||
@@ -111,45 +125,6 @@ const extractMercadoPagoTopic = (req) => {
   }
 
   return null;
-};
-
-const canUseMercadoPagoNotificationUrl = (url) => {
-  try {
-    const parsed = new URL(String(url || ""));
-    return parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
-
-const findApprovedPaymentIdByExternalReference = async ({ orderId, userId }) => {
-  const externalReference = `order:${orderId}:user:${userId}`;
-  const searchUrl = new URL("https://api.mercadopago.com/v1/payments/search");
-  searchUrl.searchParams.set("sort", "date_created");
-  searchUrl.searchParams.set("criteria", "desc");
-  searchUrl.searchParams.set("external_reference", externalReference);
-  searchUrl.searchParams.set("limit", "10");
-
-  const response = await fetch(searchUrl.toString(), {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw {
-      status: 502,
-      message: "No se pudo consultar pagos de Mercado Pago",
-    };
-  }
-
-  const payload = await response.json();
-  const results = Array.isArray(payload?.results) ? payload.results : [];
-  const approvedPayment = results.find((item) => item?.status === "approved");
-
-  return approvedPayment?.id ? String(approvedPayment.id) : null;
 };
 
 async function ensureOrderSchema() {
@@ -566,11 +541,11 @@ app.post("/orders/:orderId/checkout-pro-preference", async (req, res) => {
         pending: pendingBackUrl,
         failure: failureBackUrl,
       },
+      notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
     };
 
-    const notificationUrl = `${BACKEND_BASE_URL}/payments/mercadopago/webhook`;
-    if (canUseMercadoPagoNotificationUrl(notificationUrl)) {
-      preferenceBody.notification_url = notificationUrl;
+    if (canUseMercadoPagoAutoReturn(successBackUrl)) {
+      preferenceBody.auto_return = "approved";
     }
 
     const preferenceResult = await preference.create({
@@ -694,25 +669,9 @@ app.post("/orders/:orderId/confirm-mercadopago", async (req, res) => {
 
   try {
     await client.query("BEGIN");
-    let paymentIdToConfirm = paymentId;
-
-    if (!paymentIdToConfirm) {
-      paymentIdToConfirm = await findApprovedPaymentIdByExternalReference({
-        orderId,
-        userId,
-      });
-    }
-
-    if (!paymentIdToConfirm) {
-      throw {
-        status: 409,
-        message: "No se encontró un pago aprobado para esta orden",
-      };
-    }
-
     const confirmation = await confirmMercadoPagoPayment({
       client,
-      paymentId: paymentIdToConfirm,
+      paymentId,
       expectedOrderId: orderId,
       expectedUserId: userId,
     });
