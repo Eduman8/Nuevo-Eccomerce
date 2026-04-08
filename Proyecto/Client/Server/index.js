@@ -85,7 +85,12 @@ const parseExternalReference = (externalReference) => {
 const canUseMercadoPagoAutoReturn = (url) => {
   try {
     const parsed = new URL(String(url || ""));
-    return parsed.protocol === "https:";
+    const isHttps = parsed.protocol === "https:";
+    const isLocalhost =
+      parsed.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+
+    return isHttps || isLocalhost;
   } catch {
     return false;
   }
