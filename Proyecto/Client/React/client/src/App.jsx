@@ -7,7 +7,7 @@ import Navbar from "../Navbar/Navbar";
 import { CartProvider } from "../Context/CartContext.jsx";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
-import NotificationProvider from "../Context/NotificationProvider.jsx";
+import { NotificationProvider } from "../Notifications/NotificationProvider";
 
 import { useState, useEffect } from "react";
 import "../Styles/global.css";
