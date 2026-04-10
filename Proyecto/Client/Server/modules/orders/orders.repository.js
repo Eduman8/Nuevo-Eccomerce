@@ -19,14 +19,18 @@ const createOrdersRepository = (pool) => ({
     shippingCost,
     shippingAddress,
     paymentMethod,
+    client = null,
   }) => {
-    const orderResult = await pool.query(
-      `INSERT INTO orders (total, user_id, status, shipping_method, shipping_cost, shipping_address, payment_method)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-       RETURNING *`,
+    const executor = client || pool;
+
+    const result = await executor.query(
+      `INSERT INTO orders
+      (user_id, total, status, shipping_method, shipping_cost, shipping_address, payment_method)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
       [
-        total,
         userId,
+        total,
         status,
         shippingMethod,
         shippingCost,
@@ -35,7 +39,7 @@ const createOrdersRepository = (pool) => ({
       ],
     );
 
-    return orderResult.rows[0];
+    return result.rows[0];
   },
 
   getOrderByIdAndUserId: async ({ orderId, userId }) => {

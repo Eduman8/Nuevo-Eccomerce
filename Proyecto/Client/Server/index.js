@@ -55,6 +55,7 @@ app.use(
     mercadopagoClient,
     MP_ACCESS_TOKEN,
     FRONTEND_BASE_URL,
+    BACKEND_BASE_URL,
     confirmMercadoPagoPayment,
     finalizeOrderWithStockValidation,
   }),

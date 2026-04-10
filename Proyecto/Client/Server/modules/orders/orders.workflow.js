@@ -4,6 +4,7 @@ const { parseExternalReference } = require("../payments/mercadopago.helpers");
 const ORDER_STATUS = {
   PENDING: "pending",
   PAID: "paid",
+  REJECTED: "rejected",
 };
 
 const createOrdersWorkflow = ({ mercadopagoClient }) => {
@@ -11,22 +12,22 @@ const createOrdersWorkflow = ({ mercadopagoClient }) => {
     client,
     { order, userId, paymentReference },
   ) => {
-    const cartResult = await client.query(
-      `SELECT c.product_id, c.quantity, p.price, p.stock, p.name
-     FROM cart_items c
-     JOIN products p ON c.product_id = p.id
-     WHERE c.user_id = $1
-     FOR UPDATE OF p`,
-      [userId],
+    const orderItemsResult = await client.query(
+      `SELECT oi.product_id, oi.quantity, oi.price, p.stock, p.name
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = $1
+       FOR UPDATE OF p`,
+      [order.id],
     );
 
-    const cart = cartResult.rows;
+    const orderItems = orderItemsResult.rows;
 
-    if (cart.length === 0) {
-      throw { status: 400, message: "No hay items para confirmar" };
+    if (orderItems.length === 0) {
+      throw { status: 400, message: "La orden no tiene items para confirmar" };
     }
 
-    const stockIssues = cart
+    const stockIssues = orderItems
       .filter((item) => Number(item.stock) < Number(item.quantity))
       .map((item) => ({
         productId: item.product_id,
@@ -43,29 +44,29 @@ const createOrdersWorkflow = ({ mercadopagoClient }) => {
       };
     }
 
-    for (const item of cart) {
+    for (const item of orderItems) {
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, price)
-       VALUES ($1, $2, $3, $4)`,
-        [order.id, item.product_id, item.quantity, item.price],
+        `UPDATE products
+         SET stock = stock - $1
+         WHERE id = $2`,
+        [item.quantity, item.product_id],
       );
-
-      await client.query(`UPDATE products SET stock = stock - $1 WHERE id = $2`, [
-        item.quantity,
-        item.product_id,
-      ]);
     }
 
     await client.query(
       `UPDATE orders
-     SET status = $1,
-         payment_reference = $2,
-         paid_at = NOW()
-     WHERE id = $3`,
+       SET status = $1,
+           payment_reference = $2,
+           paid_at = NOW()
+       WHERE id = $3`,
       [ORDER_STATUS.PAID, paymentReference, order.id],
     );
 
-    await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
+    await client.query(
+      `DELETE FROM cart_items
+       WHERE user_id = $1`,
+      [userId],
+    );
   };
 
   const confirmMercadoPagoPayment = async ({
@@ -74,10 +75,19 @@ const createOrdersWorkflow = ({ mercadopagoClient }) => {
     expectedOrderId = null,
     expectedUserId = null,
   }) => {
+    if (!paymentId) {
+      throw {
+        status: 400,
+        message: "paymentId es obligatorio",
+      };
+    }
+
     const payment = new Payment(mercadopagoClient);
     const paymentInfo = await payment.get({ id: paymentId });
 
-    const referenceData = parseExternalReference(paymentInfo.external_reference);
+    const referenceData = parseExternalReference(
+      paymentInfo.external_reference,
+    );
 
     if (!referenceData) {
       throw {
@@ -101,48 +111,90 @@ const createOrdersWorkflow = ({ mercadopagoClient }) => {
     }
 
     const orderResult = await client.query(
-      `SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-      [referenceData.orderId, referenceData.userId],
+      `
+      SELECT id, user_id, status, payment_reference
+      FROM orders
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [referenceData.orderId],
     );
 
-    if (orderResult.rows.length === 0) {
-      throw { status: 404, message: "Orden no encontrada" };
+    if (!orderResult.rowCount) {
+      throw {
+        status: 404,
+        message: "No se encontró la orden asociada al pago",
+      };
     }
 
     const order = orderResult.rows[0];
+    const paymentStatus = String(paymentInfo.status || "").trim();
+    const paymentReference = String(paymentId);
 
-    if (order.payment_method !== "mercadopago") {
-      throw {
-        status: 400,
-        message: "La orden no fue creada con método Mercado Pago",
-      };
-    }
-
-    if (order.status !== ORDER_STATUS.PENDING) {
+    if (order.status === ORDER_STATUS.PAID) {
       return {
-        order,
-        paymentInfo,
+        ok: true,
         alreadyProcessed: true,
+        orderId: order.id,
+        paymentStatus,
+        paid: true,
+        paymentId: paymentInfo.id,
       };
     }
 
-    if (paymentInfo.status !== "approved") {
-      throw {
-        status: 409,
-        message: `El pago no está aprobado. Estado actual: ${paymentInfo.status}`,
+    if (paymentStatus === "approved") {
+      await finalizeOrderWithStockValidation(client, {
+        order,
+        userId: order.user_id,
+        paymentReference,
+      });
+
+      return {
+        ok: true,
+        alreadyProcessed: false,
+        orderId: order.id,
+        paymentStatus,
+        paid: true,
+        paymentId: paymentInfo.id,
       };
     }
 
-    await finalizeOrderWithStockValidation(client, {
-      order,
-      userId: referenceData.userId,
-      paymentReference: `mp:${paymentInfo.id}`,
-    });
+    if (paymentStatus === "pending" || paymentStatus === "in_process") {
+      await client.query(
+        `
+        UPDATE orders
+        SET status = $1,
+            payment_reference = $2
+        WHERE id = $3
+        `,
+        [ORDER_STATUS.PENDING, paymentReference, order.id],
+      );
+
+      return {
+        ok: true,
+        orderId: order.id,
+        paymentStatus,
+        paid: false,
+        paymentId: paymentInfo.id,
+      };
+    }
+
+    await client.query(
+      `
+      UPDATE orders
+      SET status = $1,
+          payment_reference = $2
+      WHERE id = $3
+      `,
+      [ORDER_STATUS.REJECTED, paymentReference, order.id],
+    );
 
     return {
-      order,
-      paymentInfo,
-      alreadyProcessed: false,
+      ok: true,
+      orderId: order.id,
+      paymentStatus,
+      paid: false,
+      paymentId: paymentInfo.id,
     };
   };
 

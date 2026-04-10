@@ -10,6 +10,7 @@ const ORDER_STATUS = {
   SHIPPED: "shipped",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
+  REJECTED: "rejected",
 };
 
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
@@ -35,16 +36,21 @@ const parseJsonIfNeeded = (value) => {
 
   return value;
 };
-
 const createOrdersService = ({
   ordersRepository,
   mercadopagoClient,
   MP_ACCESS_TOKEN,
-  FRONTEND_BASE_URL,
+  FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL,
+  BACKEND_BASE_URL = process.env.BACKEND_BASE_URL,
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
 }) => ({
-  createOrder: async ({ userId, shippingAddress, shippingMethod, paymentMethod }) => {
+  createOrder: async ({
+    userId,
+    shippingAddress,
+    shippingMethod,
+    paymentMethod,
+  }) => {
     if (!userId) {
       throw { status: 400, message: "userId es obligatorio" };
     }
@@ -69,6 +75,7 @@ const createOrdersService = ({
     const normalizedPaymentMethod = String(paymentMethod || "")
       .trim()
       .toLowerCase();
+
     if (!["mercadopago", "cash"].includes(normalizedPaymentMethod)) {
       throw { status: 400, message: "Método de pago inválido" };
     }
@@ -86,23 +93,49 @@ const createOrdersService = ({
 
     const shippingCost =
       normalizedShippingMethod === "home_delivery" ? 3000 : 0;
+
     const total = Number((subtotal + shippingCost).toFixed(2));
 
-    const order = await ordersRepository.createOrder({
-      total,
-      userId,
-      status: ORDER_STATUS.PENDING,
-      shippingMethod: normalizedShippingMethod,
-      shippingCost,
-      shippingAddress: JSON.stringify({ ...shippingAddress, country: "Argentina" }),
-      paymentMethod: normalizedPaymentMethod,
-    });
+    const client = await ordersRepository.connect();
 
-    return {
-      message: "Orden pendiente creada",
-      order,
-      breakdown: { subtotal, shippingCost, total },
-    };
+    try {
+      await client.query("BEGIN");
+
+      const order = await ordersRepository.createOrder({
+        total,
+        userId,
+        status: ORDER_STATUS.PENDING,
+        shippingMethod: normalizedShippingMethod,
+        shippingCost,
+        shippingAddress: JSON.stringify({
+          ...shippingAddress,
+          country: "Argentina",
+        }),
+        paymentMethod: normalizedPaymentMethod,
+        client,
+      });
+
+      for (const item of cart) {
+        await client.query(
+          `INSERT INTO order_items (order_id, product_id, quantity, price)
+         VALUES ($1, $2, $3, $4)`,
+          [order.id, item.product_id, item.quantity, item.price],
+        );
+      }
+
+      await client.query("COMMIT");
+
+      return {
+        message: "Orden pendiente creada",
+        order,
+        breakdown: { subtotal, shippingCost, total },
+      };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
   createCheckoutProPreference: async ({ orderId, userId }) => {
@@ -122,7 +155,17 @@ const createOrdersService = ({
       };
     }
 
-    const order = await ordersRepository.getOrderByIdAndUserId({ orderId, userId });
+    if (!BACKEND_BASE_URL) {
+      throw {
+        status: 500,
+        message: "BACKEND_BASE_URL no está configurado",
+      };
+    }
+
+    const order = await ordersRepository.getOrderByIdAndUserId({
+      orderId,
+      userId,
+    });
 
     if (!order) {
       throw { status: 404, message: "Orden no encontrada" };
@@ -142,19 +185,24 @@ const createOrdersService = ({
       };
     }
 
-    const cartItems = await ordersRepository.getCartItemsForPreferenceByUserId(userId);
+    const cartItems =
+      await ordersRepository.getCartItemsForPreferenceByUserId(userId);
 
     if (cartItems.length === 0) {
       throw { status: 400, message: "No hay productos en carrito" };
     }
 
     const preference = new Preference(mercadopagoClient);
-
     const externalReference = `order:${order.id}:user:${userId}`;
-
-    const successBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=success&order_id=${order.id}`;
-    const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=pending&order_id=${order.id}`;
-    const failureBackUrl = `${FRONTEND_BASE_URL}/checkout?payment_status=failure&order_id=${order.id}`;
+    const successBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=success&order_id=${order.id}`;
+    const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=pending&order_id=${order.id}`;
+    const failureBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=failure&order_id=${order.id}`;
+    if (!FRONTEND_BASE_URL) {
+      throw {
+        status: 500,
+        message: "FRONTEND_BASE_URL no está configurado",
+      };
+    }
 
     const preferenceBody = {
       items: [
@@ -180,12 +228,12 @@ const createOrdersService = ({
         pending: pendingBackUrl,
         failure: failureBackUrl,
       },
-      // notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+      notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
     };
 
-    if (canUseMercadoPagoAutoReturn(successBackUrl)) {
-      // preferenceBody.auto_return = "approved";
-    }
+    // if (canUseMercadoPagoAutoReturn(successBackUrl)) {
+    //   preferenceBody.auto_return = "approved";
+    // }
 
     const preferenceResult = await preference.create({
       body: preferenceBody,
@@ -293,10 +341,18 @@ const createOrdersService = ({
       };
     }
 
+    if (!paymentId) {
+      throw {
+        status: 400,
+        message: "paymentId es obligatorio",
+      };
+    }
+
     const client = await ordersRepository.connect();
 
     try {
       await client.query("BEGIN");
+
       const confirmation = await confirmMercadoPagoPayment({
         client,
         paymentId,
@@ -308,13 +364,19 @@ const createOrdersService = ({
 
       return {
         message: confirmation.alreadyProcessed
-          ? `La orden ya estaba confirmada en estado ${confirmation.order.status}`
-          : "Orden confirmada y pagada con Mercado Pago",
-        orderId: confirmation.order.id,
-        status: confirmation.alreadyProcessed
-          ? confirmation.order.status
-          : ORDER_STATUS.PAID,
-        paymentId: confirmation.paymentInfo.id,
+          ? "La orden ya estaba confirmada previamente"
+          : confirmation.paid
+            ? "Orden confirmada y pagada con Mercado Pago"
+            : `Pago procesado con estado ${confirmation.paymentStatus}`,
+        orderId: confirmation.orderId,
+        status: confirmation.paid
+          ? ORDER_STATUS.PAID
+          : confirmation.paymentStatus === "pending" ||
+              confirmation.paymentStatus === "in_process"
+            ? ORDER_STATUS.PENDING
+            : ORDER_STATUS.REJECTED,
+        paymentId,
+        paymentStatus: confirmation.paymentStatus,
       };
     } catch (err) {
       await client.query("ROLLBACK");
@@ -332,7 +394,10 @@ const createOrdersService = ({
       };
     }
 
-    const order = await ordersRepository.updateOrderStatusById({ status, orderId });
+    const order = await ordersRepository.updateOrderStatusById({
+      status,
+      orderId,
+    });
 
     if (!order) {
       throw { status: 404, message: "Orden no encontrada" };
@@ -343,6 +408,7 @@ const createOrdersService = ({
 
   getOrdersByUser: async (userId) => {
     const rows = await ordersRepository.getOrdersByUserId(userId);
+
     return rows.map((row) => ({
       ...row,
       shipping_address: parseJsonIfNeeded(row.shipping_address),
