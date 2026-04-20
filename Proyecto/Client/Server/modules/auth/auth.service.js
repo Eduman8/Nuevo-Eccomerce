@@ -1,54 +1,95 @@
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
-const repo = require("./auth.repository");
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const createAuthService = ({ authRepository, isAdminEmail }) => {
+  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-async function loginWithGoogle(credential) {
-  const ticket = await client.verifyIdToken({
-    idToken: credential,
-    audience: process.env.GOOGLE_CLIENT_ID,
+  const mapUserResponse = (user) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    picture: user.picture,
   });
 
-  const payload = ticket.getPayload();
-
-  if (!payload) throw new Error("Token inválido");
-
-  const { sub, email, name, picture, email_verified } = payload;
-
-  if (!email_verified) {
-    throw new Error("Email no verificado");
-  }
-
-  let user = await repo.findByGoogleId(sub);
-
-  if (!user) {
-    user = await repo.findByEmail(email);
-  }
-
-  if (!user) {
-    user = await repo.createUser({
-      googleId: sub,
-      email,
-      name,
-      picture,
-      role: "user",
-    });
-  }
-
-  const token = jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "2h" },
-  );
-
   return {
-    token,
-    user,
-  };
-}
+    loginWithGoogle: async (credential) => {
+      if (!process.env.GOOGLE_CLIENT_ID) {
+        throw new Error("GOOGLE_CLIENT_ID no configurado");
+      }
 
-module.exports = { loginWithGoogle };
+      if (!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET no configurado");
+      }
+
+      let payload;
+
+      try {
+        const ticket = await client.verifyIdToken({
+          idToken: credential,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        payload = ticket.getPayload();
+      } catch (error) {
+        const authError = new Error("Token de Google inválido");
+        authError.code = "INVALID_GOOGLE_TOKEN";
+        throw authError;
+      }
+
+      if (!payload?.sub || !payload?.email) {
+        const authError = new Error("Token de Google inválido");
+        authError.code = "INVALID_GOOGLE_TOKEN";
+        throw authError;
+      }
+
+      if (!payload.email_verified) {
+        const authError = new Error("Email de Google no verificado");
+        authError.code = "INVALID_GOOGLE_TOKEN";
+        throw authError;
+      }
+
+      const googleData = {
+        googleId: payload.sub,
+        email: payload.email,
+        name: payload.name || payload.email,
+        picture: payload.picture || null,
+      };
+
+      let user = await authRepository.findByGoogleId(googleData.googleId);
+
+      if (!user) {
+        user = await authRepository.findByEmail(googleData.email);
+
+        if (!user) {
+          user = await authRepository.createUser({
+            ...googleData,
+            role: typeof isAdminEmail === "function" && isAdminEmail(googleData.email)
+              ? "admin"
+              : "user",
+          });
+        } else {
+          user = await authRepository.updateGoogleData(user.id, googleData);
+        }
+      } else {
+        user = await authRepository.updateGoogleData(user.id, googleData);
+      }
+
+      const token = jwt.sign(
+        {
+          sub: user.id,
+          role: user.role,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "2h" },
+      );
+
+      return {
+        token,
+        user: mapUserResponse(user),
+      };
+    },
+  };
+};
+
+module.exports = createAuthService;
