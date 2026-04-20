@@ -1,5 +1,5 @@
 const createAuthController = (authService) => ({
-  authWithGoogle: async (req, res) => {
+  authWithGoogle: async (req, res, next) => {
     const { credential } = req.body || {};
 
     if (!credential) {
@@ -14,7 +14,7 @@ const createAuthController = (authService) => ({
         return res.status(401).json({ error: "Token de Google inválido" });
       }
 
-      throw error;
+      return next(error);
     }
   },
 });
