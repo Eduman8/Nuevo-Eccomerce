@@ -22,36 +22,47 @@ function App() {
     if (user) localStorage.setItem("user", JSON.stringify(user));
     else localStorage.removeItem("user");
   }, [user]);
-
+  function AdminRoute({ user, children }) {
+    if (!user) return <Navigate to="/" replace />;
+    if (user.role !== "admin") return <Navigate to="/" replace />;
+    return children;
+  }
   return (
     <NotificationProvider>
       <BrowserRouter>
         <CartProvider user={user}>
-        <Navbar user={user} setUser={setUser} />
+          <Navbar user={user} setUser={setUser} />
 
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/category/:category" element={<CategoryPage />} />
-          <Route path="/admin" element={<AdminPanel />} />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/category/:category" element={<CategoryPage />} />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute user={user}>
+                  <AdminPanel />
+                </AdminRoute>
+              }
+            />
 
-          <Route
-            path="/orders"
-            element={
-              <ProtectedRoute user={user}>
-                <Orders user={user} />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute user={user}>
+                  <Orders user={user} />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute user={user}>
-                <CheckoutPage user={user} />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute user={user}>
+                  <CheckoutPage user={user} />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         </CartProvider>
       </BrowserRouter>
     </NotificationProvider>

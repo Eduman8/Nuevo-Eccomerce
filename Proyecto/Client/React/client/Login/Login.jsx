@@ -31,26 +31,25 @@ function Login({ setUser }) {
   }, []);
 
   function handleCredentialResponse(response) {
-    const data = jwtDecode(response.credential);
-
-    const userData = {
-      name: data.name,
-      email: data.email,
-      googleId: data.sub,
-      picture: data.picture,
-    };
-
     fetch("http://localhost:3000/auth/google", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(userData),
+      body: JSON.stringify({
+        credential: response.credential,
+      }),
     })
       .then((res) => res.json())
-      .then((dbUser) => {
-        setUser(dbUser);
-        localStorage.setItem("user", JSON.stringify(dbUser));
+      .then((data) => {
+        if (!data.token) {
+          throw new Error("No se recibió token");
+        }
+
+        localStorage.setItem("authToken", data.token);
+
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
       })
       .catch((err) => console.error(err));
   }

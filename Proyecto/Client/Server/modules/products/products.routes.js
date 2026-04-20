@@ -3,6 +3,8 @@ const asyncHandler = require("../../utils/asyncHandler");
 const createProductsRepository = require("./products.repository");
 const createProductsService = require("./products.service");
 const createProductsController = require("./products.controller");
+const requireAuth = require("../../middlewares/requireAuth");
+const requireAdmin = require("../../middlewares/requireAdmin");
 
 const createProductsRouter = ({ pool }) => {
   const router = express.Router();
@@ -11,9 +13,9 @@ const createProductsRouter = ({ pool }) => {
   const productsController = createProductsController(productsService);
 
   router.get("/products", asyncHandler(productsController.getProducts));
-  router.post("/products", asyncHandler(productsController.createProduct));
-  router.delete("/products/:id", asyncHandler(productsController.deleteProduct));
-  router.patch("/products/:id", asyncHandler(productsController.updateProductCategory));
+  router.post("/", requireAuth, requireAdmin, controller.create);
+  router.patch("/:id", requireAuth, requireAdmin, controller.update);
+  router.delete("/:id", requireAuth, requireAdmin, controller.remove);
 
   return router;
 };

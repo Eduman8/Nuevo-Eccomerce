@@ -1,22 +1,19 @@
-const { createHttpError } = require("../../utils/httpError");
+const authService = require("./auth.service");
 
-const createAuthController = (authService) => ({
-  authWithGoogle: async (req, res, next) => {
-    const { name, email } = req.body;
+async function googleLogin(req, res, next) {
+  try {
+    const { credential } = req.body;
 
-    try {
-      const user = await authService.authWithGoogle({ name, email });
-      res.json(user);
-    } catch (err) {
-      return next(
-        createHttpError({
-          status: 500,
-          payload: { error: "Error al autenticar con Google" },
-          logError: err,
-        }),
-      );
+    if (!credential) {
+      return res.status(400).json({ error: "credential requerido" });
     }
-  },
-});
 
-module.exports = createAuthController;
+    const result = await authService.loginWithGoogle(credential);
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { googleLogin };
