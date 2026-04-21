@@ -10,11 +10,11 @@ const createCartRouter = ({ pool }) => {
   const cartService = createCartService(cartRepository);
   const cartController = createCartController(cartService);
 
-  router.post("/cart", asyncHandler(cartController.createCartItem));
-  router.get("/cart/:userId", asyncHandler(cartController.getCartByUser));
-  router.delete("/cart/:id", asyncHandler(cartController.deleteCartItem));
-  router.patch("/cart/:id/decrease", asyncHandler(cartController.decreaseCartItem));
-  router.delete("/cart/user/:userId", asyncHandler(cartController.clearCartByUser));
+  router.post("/", asyncHandler(cartController.createCartItem));
+  router.get("/user/:userId", asyncHandler(cartController.getCartByUser));
+  router.delete("/:id", asyncHandler(cartController.deleteCartItem));
+  router.patch("/:id/decrease", asyncHandler(cartController.decreaseCartItem));
+  router.delete("/user/:userId", asyncHandler(cartController.clearCartByUser));
 
   return router;
 };

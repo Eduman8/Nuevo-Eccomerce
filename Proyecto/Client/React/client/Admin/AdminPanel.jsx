@@ -11,6 +11,8 @@ const initialForm = {
   stock: "",
 };
 
+const API_BASE_URL = "http://localhost:3000/api";
+
 function AdminPanel({ user }) {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -22,7 +24,7 @@ function AdminPanel({ user }) {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:3000/products");
+      const response = await fetch(`${API_BASE_URL}/products`);
       const data = await response.json();
       setProducts(data);
     } catch (error) {
@@ -47,7 +49,7 @@ function AdminPanel({ user }) {
     setSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:3000/products", {
+      const response = await fetch(`${API_BASE_URL}/products`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -75,7 +77,7 @@ function AdminPanel({ user }) {
 
   const handleDeleteProduct = async (productId) => {
     try {
-      const response = await fetch(`http://localhost:3000/products/${productId}`, {
+      const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
         method: "DELETE",
         headers: {
           "x-user-email": user?.email || "",

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "../Home/Home";
 import Orders from "../Pages/Orders";
 import CategoryPage from "../CategoryPage/CategoryPage";
@@ -22,11 +22,14 @@ function App() {
     if (user) localStorage.setItem("user", JSON.stringify(user));
     else localStorage.removeItem("user");
   }, [user]);
+
   function AdminRoute({ user, children }) {
     if (!user) return <Navigate to="/" replace />;
     if (user.role !== "admin") return <Navigate to="/" replace />;
     return children;
   }
+  console.log("USER APP:", user);
+  console.log("USER ROLE:", user?.role);
   return (
     <NotificationProvider>
       <BrowserRouter>
@@ -36,11 +39,12 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/category/:category" element={<CategoryPage />} />
+
             <Route
               path="/admin"
               element={
                 <AdminRoute user={user}>
-                  <AdminPanel />
+                  <AdminPanel user={user} />
                 </AdminRoute>
               }
             />

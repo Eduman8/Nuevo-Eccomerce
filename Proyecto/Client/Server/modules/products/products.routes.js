@@ -12,10 +12,25 @@ const createProductsRouter = ({ pool }) => {
   const productsService = createProductsService(productsRepository);
   const productsController = createProductsController(productsService);
 
-  router.get("/products", asyncHandler(productsController.getProducts));
-  router.post("/", requireAuth, requireAdmin, controller.create);
-  router.patch("/:id", requireAuth, requireAdmin, controller.update);
-  router.delete("/:id", requireAuth, requireAdmin, controller.remove);
+  router.get("/", asyncHandler(productsController.getProducts));
+  router.post(
+    "/",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(productsController.create),
+  );
+  router.patch(
+    "/:id",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(productsController.update),
+  );
+  router.delete(
+    "/:id",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(productsController.remove),
+  );
 
   return router;
 };

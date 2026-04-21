@@ -228,7 +228,7 @@ const createOrdersService = ({
         pending: pendingBackUrl,
         failure: failureBackUrl,
       },
-      notification_url: `${BACKEND_BASE_URL}/payments/mercadopago/webhook`,
+      notification_url: `${BACKEND_BASE_URL}/api/payments/mercadopago/webhook`,
     };
 
     // if (canUseMercadoPagoAutoReturn(successBackUrl)) {

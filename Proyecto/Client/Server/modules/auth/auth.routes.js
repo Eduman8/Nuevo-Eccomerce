@@ -10,7 +10,7 @@ const createAuthRouter = ({ pool, isAdminEmail }) => {
   const authService = createAuthService({ authRepository, isAdminEmail });
   const authController = createAuthController(authService);
 
-  router.post("/auth/google", asyncHandler(authController.authWithGoogle));
+  router.post("/google", asyncHandler(authController.authWithGoogle));
 
   return router;
 };

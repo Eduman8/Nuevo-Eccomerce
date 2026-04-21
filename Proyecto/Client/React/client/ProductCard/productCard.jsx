@@ -1,8 +1,10 @@
 import "./productCard.css";
 import { useCart } from "../Hooks/useCart";
+import { useNavigate } from "react-router-dom";
 
 function productCard({ product }) {
   const { addToCart } = useCart();
+  const navigate = useNavigate();
 
   return (
     <div

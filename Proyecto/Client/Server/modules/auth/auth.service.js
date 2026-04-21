@@ -49,11 +49,17 @@ const createAuthService = ({ authRepository, isAdminEmail }) => {
         throw authError;
       }
 
+      const computedRole =
+        typeof isAdminEmail === "function" && isAdminEmail(payload.email)
+          ? "admin"
+          : "user";
+
       const googleData = {
         googleId: payload.sub,
         email: payload.email,
         name: payload.name || payload.email,
         picture: payload.picture || null,
+        role: computedRole,
       };
 
       let user = await authRepository.findByGoogleId(googleData.googleId);
@@ -62,12 +68,7 @@ const createAuthService = ({ authRepository, isAdminEmail }) => {
         user = await authRepository.findByEmail(googleData.email);
 
         if (!user) {
-          user = await authRepository.createUser({
-            ...googleData,
-            role: typeof isAdminEmail === "function" && isAdminEmail(googleData.email)
-              ? "admin"
-              : "user",
-          });
+          user = await authRepository.createUser(googleData);
         } else {
           user = await authRepository.updateGoogleData(user.id, googleData);
         }

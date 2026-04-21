@@ -11,7 +11,7 @@ const createOrdersRouter = ({
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
   FRONTEND_BASE_URL,
-  BACKEND_BASE_URL, // ← agregado
+  BACKEND_BASE_URL,
 }) => {
   const router = express.Router();
   const ordersRepository = createOrdersRepository(pool);
@@ -21,36 +21,36 @@ const createOrdersRouter = ({
     mercadopagoClient,
     MP_ACCESS_TOKEN,
     FRONTEND_BASE_URL,
-    BACKEND_BASE_URL, // ← agregado
+    BACKEND_BASE_URL,
     confirmMercadoPagoPayment,
     finalizeOrderWithStockValidation,
   });
 
   const ordersController = createOrdersController(ordersService);
 
-  router.post("/orders", asyncHandler(ordersController.createOrder));
+  router.post("/", asyncHandler(ordersController.createOrder));
 
   router.post(
-    "/orders/:orderId/checkout-pro-preference",
+    "/:orderId/checkout-pro-preference",
     asyncHandler(ordersController.createCheckoutProPreference),
   );
 
   router.post(
-    "/orders/:orderId/confirm-cash",
+    "/:orderId/confirm-cash",
     asyncHandler(ordersController.confirmCashOrder),
   );
 
   router.post(
-    "/orders/:orderId/confirm-mercadopago",
+    "/:orderId/confirm-mercadopago",
     asyncHandler(ordersController.confirmMercadoPagoOrder),
   );
 
   router.patch(
-    "/orders/:orderId/status",
+    "/:orderId/status",
     asyncHandler(ordersController.updateOrderStatus),
   );
 
-  router.get("/orders/:userId", asyncHandler(ordersController.getOrdersByUser));
+  router.get("/user/:userId", asyncHandler(ordersController.getOrdersByUser));
 
   return router;
 };

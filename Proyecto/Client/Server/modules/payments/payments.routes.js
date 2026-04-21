@@ -19,27 +19,31 @@ const createPaymentsRouter = ({
   const router = express.Router();
 
   router.all(
-    "/payments/mercadopago/webhook",
-    asyncHandler(mercadoPagoWebhook(
-      pool,
-      mercadopagoClient,
-      hasValidMercadoPagoTokenFormat,
-      MP_ACCESS_TOKEN,
-      extractMercadoPagoTopic,
-      extractMercadoPagoPaymentId,
-      confirmMercadoPagoPayment,
-    )),
+    "/mercadopago/webhook",
+    asyncHandler(
+      mercadoPagoWebhook(
+        pool,
+        mercadopagoClient,
+        hasValidMercadoPagoTokenFormat,
+        MP_ACCESS_TOKEN,
+        extractMercadoPagoTopic,
+        extractMercadoPagoPaymentId,
+        confirmMercadoPagoPayment,
+      ),
+    ),
   );
 
   router.get(
-    "/payments/mercadopago/status",
-    asyncHandler(mercadoPagoStatus(
-      mercadopagoClient,
-      hasValidMercadoPagoTokenFormat,
-      MP_ACCESS_TOKEN,
-      BACKEND_BASE_URL,
-      FRONTEND_BASE_URL,
-    )),
+    "/mercadopago/status",
+    asyncHandler(
+      mercadoPagoStatus(
+        mercadopagoClient,
+        hasValidMercadoPagoTokenFormat,
+        MP_ACCESS_TOKEN,
+        BACKEND_BASE_URL,
+        FRONTEND_BASE_URL,
+      ),
+    ),
   );
 
   return router;

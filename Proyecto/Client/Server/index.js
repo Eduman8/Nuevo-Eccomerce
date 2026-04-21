@@ -1,18 +1,23 @@
 const express = require("express");
-const app = express();
-const pool = require("./db/pool");
 const cors = require("cors");
 const { MercadoPagoConfig } = require("mercadopago");
+
+const app = express();
+
+const pool = require("./db/pool");
 const env = require("./config/env");
+
 const createUsersRouter = require("./modules/users/users.routes");
 const createProductsRouter = require("./modules/products/products.routes");
 const createAuthRouter = require("./modules/auth/auth.routes");
 const createCartRouter = require("./modules/cart/cart.routes");
 const createOrdersRouter = require("./modules/orders/orders.routes");
 const createPaymentsRouter = require("./modules/payments/payments.routes");
+
 const createOrdersWorkflow = require("./modules/orders/orders.workflow");
 const ensureOrderSchema = require("./modules/orders/orders.schema");
 const errorHandler = require("./middlewares/errorHandler");
+
 const {
   hasValidMercadoPagoTokenFormat,
   extractMercadoPagoTopic,
@@ -27,7 +32,7 @@ const MP_ACCESS_TOKEN = env.MP_ACCESS_TOKEN;
 const PORT = env.PORT;
 const FRONTEND_BASE_URL = env.FRONTEND_BASE_URL;
 const BACKEND_BASE_URL = env.BACKEND_BASE_URL;
-const ADMIN_EMAILS = env.ADMIN_EMAILS;
+const ADMIN_EMAILS = env.ADMIN_EMAILS || [];
 
 const isAdminEmail = (email) => {
   if (!email) return false;
@@ -38,18 +43,17 @@ const mercadopagoClient = MP_ACCESS_TOKEN
   ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN })
   : null;
 
-const {
-  finalizeOrderWithStockValidation,
-  confirmMercadoPagoPayment,
-} = createOrdersWorkflow({
-  mercadopagoClient,
-});
+const { finalizeOrderWithStockValidation, confirmMercadoPagoPayment } =
+  createOrdersWorkflow({
+    mercadopagoClient,
+  });
 
-app.use(createUsersRouter({ pool }));
-app.use(createProductsRouter({ pool }));
-app.use(createAuthRouter({ pool, isAdminEmail }));
-app.use(createCartRouter({ pool }));
+app.use("/api/users", createUsersRouter({ pool }));
+app.use("/api/products", createProductsRouter({ pool }));
+app.use("/api/auth", createAuthRouter({ pool, isAdminEmail }));
+app.use("/api/cart", createCartRouter({ pool }));
 app.use(
+  "/api/orders",
   createOrdersRouter({
     pool,
     mercadopagoClient,
@@ -61,6 +65,7 @@ app.use(
   }),
 );
 app.use(
+  "/api/payments",
   createPaymentsRouter({
     pool,
     mercadopagoClient,
@@ -73,20 +78,29 @@ app.use(
     confirmMercadoPagoPayment,
   }),
 );
+
 app.use(errorHandler);
 
-ensureOrderSchema(pool).finally(() => {
-  app.listen(PORT, () => {
-    if (!MP_ACCESS_TOKEN) {
-      console.warn(
-        "[Mercado Pago] No hay access token configurado. Definí MP_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN.",
-      );
-    } else if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
-      console.warn(
-        "[Mercado Pago] Access token con formato inválido. Debe comenzar con TEST- o APP_USR-.",
-      );
-    }
+ensureOrderSchema(pool)
+  .then(() => {
+    app.listen(PORT, () => {
+      if (!MP_ACCESS_TOKEN) {
+        console.warn(
+          "[Mercado Pago] No hay access token configurado. Definí MP_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN.",
+        );
+      } else if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+        console.warn(
+          "[Mercado Pago] Access token con formato inválido. Debe comenzar con TEST- o APP_USR-.",
+        );
+      }
 
-    console.log(`Servidor en puerto ${PORT}`);
+      console.log(`Servidor en puerto ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error(
+      "[Startup Error] No se pudo inicializar el schema de orders:",
+      error,
+    );
+    process.exit(1);
   });
-});

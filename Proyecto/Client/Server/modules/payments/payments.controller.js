@@ -27,10 +27,15 @@ const mercadoPagoWebhook =
       console.warn("Webhook ignorado: topic o paymentId inválido", {
         topic,
         rawPaymentId,
-        body: req.body,
         query: req.query,
+        body: req.body,
       });
-      return res.sendStatus(200);
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "topic o paymentId inválido",
+      });
     }
 
     const client = await pool.connect();
@@ -38,24 +43,42 @@ const mercadoPagoWebhook =
     try {
       await client.query("BEGIN");
 
-      await confirmMercadoPagoPayment({
+      const confirmation = await confirmMercadoPagoPayment({
         client,
         paymentId,
       });
 
       await client.query("COMMIT");
-      return res.sendStatus(200);
+
+      console.log("Webhook procesado correctamente", {
+        paymentId,
+        topic,
+        confirmation,
+      });
+
+      return res.status(200).json({
+        received: true,
+        processed: true,
+        confirmation,
+      });
     } catch (err) {
       await client.query("ROLLBACK");
+
       console.error("Error procesando webhook de Mercado Pago", {
         message: err.message,
+        details: err.details,
         stack: err.stack,
         paymentId,
         topic,
-        body: req.body,
         query: req.query,
+        body: req.body,
       });
-      return res.sendStatus(500);
+
+      return res.status(500).json({
+        error: "Error procesando webhook de Mercado Pago",
+        message: err.message,
+        details: err.details,
+      });
     } finally {
       client.release();
     }

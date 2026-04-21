@@ -30,8 +30,10 @@ function Login({ setUser }) {
     return () => clearInterval(interval);
   }, []);
 
+  const API_BASE_URL = "http://localhost:3000/api";
+
   function handleCredentialResponse(response) {
-    fetch("http://localhost:3000/auth/google", {
+    fetch(`${API_BASE_URL}/auth/google`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -40,14 +42,18 @@ function Login({ setUser }) {
         credential: response.credential,
       }),
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Error al iniciar sesión");
+        }
+
         if (!data.token) {
           throw new Error("No se recibió token");
         }
 
         localStorage.setItem("authToken", data.token);
-
         setUser(data.user);
         localStorage.setItem("user", JSON.stringify(data.user));
       })

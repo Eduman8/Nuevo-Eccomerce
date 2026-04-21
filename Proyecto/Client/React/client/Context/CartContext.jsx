@@ -5,8 +5,13 @@ import { useNotification } from "../Notifications/NotificationProvider";
 export function CartProvider({ children, user }) {
   const [cart, setCart] = useState([]);
   const { info, warning, error: notifyError } = useNotification();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-  const normalizeCartPayload = (payload) => (Array.isArray(payload) ? payload : []);
+
+  const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+
+  const normalizeCartPayload = (payload) =>
+    Array.isArray(payload) ? payload : [];
+
   const parseJsonResponse = async (res) => {
     try {
       return await res.json();
@@ -14,7 +19,13 @@ export function CartProvider({ children, user }) {
       return null;
     }
   };
-  const requestJson = async (url, options = {}, defaultErrorMessage = "Ocurrió un error de red.") => {
+  // console.log("API_BASE_URL:", API_BASE_URL);
+  // console.log("GET CART URL:", `${API_BASE_URL}/cart/user/${user?.id}`);
+  const requestJson = async (
+    url,
+    options = {},
+    defaultErrorMessage = "Ocurrió un error de red.",
+  ) => {
     const res = await fetch(url, options);
     const payload = await parseJsonResponse(res);
 
@@ -32,7 +43,7 @@ export function CartProvider({ children, user }) {
     }
 
     requestJson(
-      `${API_BASE_URL}/cart/${user.id}`,
+      `${API_BASE_URL}/cart/user/${user.id}`,
       {},
       "No se pudo cargar el carrito.",
     )
@@ -49,6 +60,26 @@ export function CartProvider({ children, user }) {
     (acc, item) => acc + Number(item.price) * Number(item.quantity),
     0,
   );
+
+  const refreshCart = () => {
+    if (!user) return Promise.resolve([]);
+
+    return requestJson(
+      `${API_BASE_URL}/cart/user/${user.id}`,
+      {},
+      "No se pudo actualizar el carrito.",
+    )
+      .then((payload) => normalizeCartPayload(payload))
+      .then((items) => {
+        setCart(items);
+        return items;
+      })
+      .catch((err) => {
+        console.error(err);
+        setCart([]);
+        return [];
+      });
+  };
 
   const addToCart = (product) => {
     if (!user) {
@@ -75,26 +106,6 @@ export function CartProvider({ children, user }) {
       .catch((err) => {
         console.error(err);
         notifyError("No se pudo agregar el producto al carrito.");
-      });
-  };
-
-  const refreshCart = () => {
-    if (!user) return Promise.resolve([]);
-
-    return requestJson(
-      `${API_BASE_URL}/cart/${user.id}`,
-      {},
-      "No se pudo actualizar el carrito.",
-    )
-      .then((payload) => normalizeCartPayload(payload))
-      .then((items) => {
-        setCart(items);
-        return items;
-      })
-      .catch((err) => {
-        console.error(err);
-        setCart([]);
-        return [];
       });
   };
 
@@ -184,7 +195,6 @@ export function CartProvider({ children, user }) {
     );
 
     await refreshCart();
-
     return payload;
   };
 
@@ -203,19 +213,18 @@ export function CartProvider({ children, user }) {
         body: JSON.stringify(
           paymentId
             ? {
-              userId: user.id,
-              paymentId,
-            }
+                userId: user.id,
+                paymentId,
+              }
             : {
-              userId: user.id,
-            },
+                userId: user.id,
+              },
         ),
       },
       "No se pudo confirmar el pago de Mercado Pago.",
     );
 
     await refreshCart();
-
     return payload;
   };
 
