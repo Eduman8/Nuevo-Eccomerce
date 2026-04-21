@@ -45,12 +45,7 @@ const createOrdersService = ({
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
 }) => ({
-  createOrder: async ({
-    userId,
-    shippingAddress,
-    shippingMethod,
-    paymentMethod,
-  }) => {
+  createOrder: async (userId, { shippingAddress, shippingMethod, paymentMethod }) => {
     if (!userId) {
       throw { status: 400, message: "userId es obligatorio" };
     }
@@ -138,7 +133,7 @@ const createOrdersService = ({
     }
   },
 
-  createCheckoutProPreference: async ({ orderId, userId }) => {
+  createCheckoutProPreference: async (orderId, userId) => {
     if (!mercadopagoClient) {
       throw {
         status: 500,
@@ -162,13 +157,13 @@ const createOrdersService = ({
       };
     }
 
-    const order = await ordersRepository.getOrderByIdAndUserId({
-      orderId,
-      userId,
-    });
+    const order = await ordersRepository.getOrderById(orderId);
 
     if (!order) {
       throw { status: 404, message: "Orden no encontrada" };
+    }
+    if (String(order.user_id) !== String(userId)) {
+      throw { status: 403, message: "No autorizado para esta orden" };
     }
 
     if (order.status !== ORDER_STATUS.PENDING) {
@@ -251,11 +246,11 @@ const createOrdersService = ({
     };
   },
 
-  confirmCashOrder: async ({ orderId, userId, shippingReference }) => {
+  confirmCashOrder: async (orderId, userId, shippingReference) => {
     if (!userId || !shippingReference) {
       throw {
         status: 400,
-        message: "userId y shippingReference son obligatorios",
+        message: "shippingReference es obligatorio",
       };
     }
 
@@ -265,8 +260,8 @@ const createOrdersService = ({
       await client.query("BEGIN");
 
       const orderResult = await client.query(
-        `SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-        [orderId, userId],
+        `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+        [orderId],
       );
 
       if (orderResult.rows.length === 0) {
@@ -274,6 +269,9 @@ const createOrdersService = ({
       }
 
       const order = orderResult.rows[0];
+      if (String(order.user_id) !== String(userId)) {
+        throw { status: 403, message: "No autorizado para esta orden" };
+      }
 
       if (order.status !== ORDER_STATUS.PENDING) {
         throw {
@@ -317,7 +315,7 @@ const createOrdersService = ({
     }
   },
 
-  confirmMercadoPagoOrder: async ({ orderId, userId, paymentId }) => {
+  confirmMercadoPagoOrder: async (orderId, userId, paymentId) => {
     if (!mercadopagoClient) {
       throw {
         status: 500,
@@ -352,6 +350,18 @@ const createOrdersService = ({
 
     try {
       await client.query("BEGIN");
+      const orderResult = await client.query(
+        "SELECT id, user_id FROM orders WHERE id = $1 FOR UPDATE",
+        [orderId],
+      );
+
+      if (orderResult.rows.length === 0) {
+        throw { status: 404, message: "Orden no encontrada" };
+      }
+
+      if (String(orderResult.rows[0].user_id) !== String(userId)) {
+        throw { status: 403, message: "No autorizado para esta orden" };
+      }
 
       const confirmation = await confirmMercadoPagoPayment({
         client,

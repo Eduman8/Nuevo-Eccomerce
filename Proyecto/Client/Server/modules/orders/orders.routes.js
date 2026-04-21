@@ -1,5 +1,6 @@
 const express = require("express");
 const asyncHandler = require("../../utils/asyncHandler");
+const requireAuth = require("../../middlewares/requireAuth");
 const createOrdersRepository = require("./orders.repository");
 const createOrdersService = require("./orders.service");
 const createOrdersController = require("./orders.controller");
@@ -27,6 +28,7 @@ const createOrdersRouter = ({
   });
 
   const ordersController = createOrdersController(ordersService);
+  router.use(requireAuth);
 
   router.post("/", asyncHandler(ordersController.createOrder));
 

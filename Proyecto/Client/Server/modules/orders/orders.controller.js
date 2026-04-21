@@ -2,8 +2,10 @@ const { createHttpError } = require("../../utils/httpError");
 
 const createOrdersController = (ordersService) => ({
   createOrder: async (req, res, next) => {
+    const userId = req.user?.id;
+
     try {
-      const result = await ordersService.createOrder(req.body);
+      const result = await ordersService.createOrder(userId, req.body);
       res.status(201).json(result);
     } catch (err) {
       if (err.status && err.message) {
@@ -27,10 +29,13 @@ const createOrdersController = (ordersService) => ({
 
   createCheckoutProPreference: async (req, res, next) => {
     const { orderId } = req.params;
-    const { userId } = req.body;
+    const userId = req.user?.id;
 
     try {
-      const result = await ordersService.createCheckoutProPreference({ orderId, userId });
+      const result = await ordersService.createCheckoutProPreference(
+        orderId,
+        userId,
+      );
       return res.json(result);
     } catch (err) {
       if (err.status && err.message) {
@@ -54,14 +59,15 @@ const createOrdersController = (ordersService) => ({
 
   confirmCashOrder: async (req, res, next) => {
     const { orderId } = req.params;
-    const { userId, shippingReference } = req.body;
+    const userId = req.user?.id;
+    const { shippingReference } = req.body;
 
     try {
-      const result = await ordersService.confirmCashOrder({
+      const result = await ordersService.confirmCashOrder(
         orderId,
         userId,
         shippingReference,
-      });
+      );
 
       return res.json(result);
     } catch (err) {
@@ -79,14 +85,15 @@ const createOrdersController = (ordersService) => ({
 
   confirmMercadoPagoOrder: async (req, res, next) => {
     const { orderId } = req.params;
-    const { userId, paymentId } = req.body;
+    const userId = req.user?.id;
+    const { paymentId } = req.body;
 
     try {
-      const result = await ordersService.confirmMercadoPagoOrder({
+      const result = await ordersService.confirmMercadoPagoOrder(
         orderId,
         userId,
         paymentId,
-      });
+      );
 
       return res.json(result);
     } catch (err) {
@@ -131,7 +138,7 @@ const createOrdersController = (ordersService) => ({
   },
 
   getOrdersByUser: async (req, res, next) => {
-    const { userId } = req.params;
+    const userId = req.user?.id;
 
     try {
       const orders = await ordersService.getOrdersByUser(userId);

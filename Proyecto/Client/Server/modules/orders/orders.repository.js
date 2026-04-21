@@ -51,6 +51,14 @@ const createOrdersRepository = (pool) => ({
     return orderResult.rows[0] || null;
   },
 
+  getOrderById: async (orderId) => {
+    const orderResult = await pool.query(`SELECT * FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
+
+    return orderResult.rows[0] || null;
+  },
+
   getCartItemsForPreferenceByUserId: async (userId) => {
     const cartResult = await pool.query(
       `SELECT c.quantity, p.name, p.price
