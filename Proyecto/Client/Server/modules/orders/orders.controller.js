@@ -6,7 +6,7 @@ const createOrdersController = (ordersService) => ({
 
     try {
       const result = await ordersService.createOrder(userId, req.body);
-      res.status(201).json(result);
+      return res.status(201).json(result);
     } catch (err) {
       if (err.status && err.message) {
         return next(
@@ -78,6 +78,7 @@ const createOrdersController = (ordersService) => ({
             error: err.message || "Error al confirmar orden en efectivo",
             details: err.details,
           },
+          logError: err,
         }),
       );
     }
@@ -113,9 +114,14 @@ const createOrdersController = (ordersService) => ({
   updateOrderStatus: async (req, res, next) => {
     const { orderId } = req.params;
     const { status } = req.body;
+    const userId = req.user?.id;
 
     try {
-      const order = await ordersService.updateOrderStatus({ orderId, status });
+      const order = await ordersService.updateOrderStatus({
+        orderId,
+        status,
+        userId,
+      });
       return res.json(order);
     } catch (err) {
       if (err.status && err.message) {
@@ -142,12 +148,12 @@ const createOrdersController = (ordersService) => ({
 
     try {
       const orders = await ordersService.getOrdersByUser(userId);
-      res.json(orders);
+      return res.json(orders);
     } catch (err) {
       return next(
         createHttpError({
-          status: 500,
-          payload: { error: "Error al obtener órdenes" },
+          status: err.status || 500,
+          payload: { error: err.message || "Error al obtener órdenes" },
           logError: err,
         }),
       );

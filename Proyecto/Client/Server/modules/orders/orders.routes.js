@@ -28,9 +28,12 @@ const createOrdersRouter = ({
   });
 
   const ordersController = createOrdersController(ordersService);
+
   router.use(requireAuth);
 
   router.post("/", asyncHandler(ordersController.createOrder));
+
+  router.get("/my-orders", asyncHandler(ordersController.getOrdersByUser));
 
   router.post(
     "/:orderId/checkout-pro-preference",
@@ -51,8 +54,6 @@ const createOrdersRouter = ({
     "/:orderId/status",
     asyncHandler(ordersController.updateOrderStatus),
   );
-
-  router.get("/user/:userId", asyncHandler(ordersController.getOrdersByUser));
 
   return router;
 };

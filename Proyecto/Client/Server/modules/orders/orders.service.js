@@ -45,7 +45,10 @@ const createOrdersService = ({
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
 }) => ({
-  createOrder: async (userId, { shippingAddress, shippingMethod, paymentMethod }) => {
+  createOrder: async (
+    userId,
+    { shippingAddress, shippingMethod, paymentMethod },
+  ) => {
     if (!userId) {
       throw { status: 400, message: "userId es obligatorio" };
     }
@@ -396,7 +399,7 @@ const createOrdersService = ({
     }
   },
 
-  updateOrderStatus: async ({ orderId, status }) => {
+  updateOrderStatus: async ({ orderId, status, userId }) => {
     if (!VALID_ORDER_STATUSES.includes(status)) {
       throw {
         status: 400,
@@ -404,16 +407,22 @@ const createOrdersService = ({
       };
     }
 
-    const order = await ordersRepository.updateOrderStatusById({
-      status,
-      orderId,
-    });
+    const order = await ordersRepository.getOrderById(orderId);
 
     if (!order) {
       throw { status: 404, message: "Orden no encontrada" };
     }
 
-    return order;
+    if (String(order.user_id) !== String(userId)) {
+      throw { status: 403, message: "No autorizado para esta orden" };
+    }
+
+    const updatedOrder = await ordersRepository.updateOrderStatusById({
+      status,
+      orderId,
+    });
+
+    return updatedOrder;
   },
 
   getOrdersByUser: async (userId) => {
