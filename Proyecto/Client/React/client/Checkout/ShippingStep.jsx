@@ -1,7 +1,9 @@
+import { getShippingMethodLabel } from "../utils/orderLabels";
+
 function ShippingStep({ shippingMethod, onChange, cashSelected = false }) {
   const options = [
-    { value: "home_delivery", label: "Envío a domicilio - $3.000" },
-    { value: "pickup", label: "Retirar en local - $0" },
+    { value: "home_delivery", label: `${getShippingMethodLabel("home_delivery")} - $3.000` },
+    { value: "pickup", label: `${getShippingMethodLabel("pickup")} - $0` },
   ];
 
   return (
