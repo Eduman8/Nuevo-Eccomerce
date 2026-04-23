@@ -1,4 +1,4 @@
-function PaymentStep({ paymentMethod, onMethodChange }) {
+function PaymentStep({ paymentMethod, onMethodChange, disabled = false }) {
   return (
     <section className="checkout-step">
       <h3>3. Pago</h3>
@@ -10,6 +10,7 @@ function PaymentStep({ paymentMethod, onMethodChange }) {
             value="mercadopago"
             checked={paymentMethod === "mercadopago"}
             onChange={(e) => onMethodChange(e.target.value)}
+            disabled={disabled}
           />
           Mercado Pago
         </label>
@@ -20,6 +21,7 @@ function PaymentStep({ paymentMethod, onMethodChange }) {
             value="cash"
             checked={paymentMethod === "cash"}
             onChange={(e) => onMethodChange(e.target.value)}
+            disabled={disabled}
           />
           Efectivo
         </label>

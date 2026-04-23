@@ -1,10 +1,19 @@
 import { useState, useEffect } from "react";
 import { CartContext } from "./cartContext";
 import { useNotification } from "../Notifications/NotificationProvider";
+import {
+  buildAuthHeaders,
+  clearStoredAuth,
+  isUnauthorizedResponse,
+  SESSION_EXPIRED_MESSAGE,
+} from "../utils/authSession";
 
-export function CartProvider({ children, user }) {
+export function CartProvider({ children, user, onSessionExpired }) {
   const [cart, setCart] = useState([]);
-  const { info, warning, error: notifyError } = useNotification();
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartError, setCartError] = useState("");
+  const [isMutatingCart, setIsMutatingCart] = useState(false);
+  const { info, success, warning, error: notifyError } = useNotification();
 
   const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -19,15 +28,27 @@ export function CartProvider({ children, user }) {
       return null;
     }
   };
-  // console.log("API_BASE_URL:", API_BASE_URL);
-  // console.log("GET CART URL:", `${API_BASE_URL}/cart/user/${user?.id}`);
+
   const requestJson = async (
     url,
     options = {},
     defaultErrorMessage = "Ocurrió un error de red.",
   ) => {
-    const res = await fetch(url, options);
+    const headers = buildAuthHeaders(options.headers || {});
+    const res = await fetch(url, {
+      ...options,
+      headers,
+    });
     const payload = await parseJsonResponse(res);
+
+    if (isUnauthorizedResponse(res)) {
+      clearStoredAuth();
+      setCart([]);
+      setCartError(SESSION_EXPIRED_MESSAGE);
+      onSessionExpired?.();
+      warning(SESSION_EXPIRED_MESSAGE);
+      throw new Error(SESSION_EXPIRED_MESSAGE);
+    }
 
     if (!res.ok) {
       throw new Error(payload?.error || defaultErrorMessage);
@@ -39,8 +60,13 @@ export function CartProvider({ children, user }) {
   useEffect(() => {
     if (!user) {
       setCart([]);
+      setCartError("");
+      setCartLoading(false);
       return;
     }
+
+    setCartLoading(true);
+    setCartError("");
 
     requestJson(
       `${API_BASE_URL}/cart/user/${user.id}`,
@@ -52,8 +78,14 @@ export function CartProvider({ children, user }) {
       .catch((err) => {
         console.error(err);
         setCart([]);
+        if (err.message !== SESSION_EXPIRED_MESSAGE) {
+          setCartError(err.message || "No se pudo cargar el carrito.");
+        }
+      })
+      .finally(() => {
+        setCartLoading(false);
       });
-  }, [user, API_BASE_URL]);
+  }, [user, API_BASE_URL, onSessionExpired, warning]);
 
   const safeCart = Array.isArray(cart) ? cart : [];
   const total = safeCart.reduce(
@@ -64,6 +96,8 @@ export function CartProvider({ children, user }) {
   const refreshCart = () => {
     if (!user) return Promise.resolve([]);
 
+    setCartLoading(true);
+
     return requestJson(
       `${API_BASE_URL}/cart/user/${user.id}`,
       {},
@@ -72,12 +106,19 @@ export function CartProvider({ children, user }) {
       .then((payload) => normalizeCartPayload(payload))
       .then((items) => {
         setCart(items);
+        setCartError("");
         return items;
       })
       .catch((err) => {
         console.error(err);
         setCart([]);
+        if (err.message !== SESSION_EXPIRED_MESSAGE) {
+          setCartError(err.message || "No se pudo actualizar el carrito.");
+        }
         return [];
+      })
+      .finally(() => {
+        setCartLoading(false);
       });
   };
 
@@ -86,6 +127,9 @@ export function CartProvider({ children, user }) {
       warning("Tenés que iniciar sesión para agregar productos al carrito.");
       return;
     }
+
+    setIsMutatingCart(true);
+    setCartError("");
 
     requestJson(
       `${API_BASE_URL}/cart`,
@@ -103,35 +147,71 @@ export function CartProvider({ children, user }) {
       "No se pudo agregar el producto al carrito.",
     )
       .then(refreshCart)
+      .then(() => {
+        success("Producto agregado al carrito.");
+      })
       .catch((err) => {
         console.error(err);
-        notifyError("No se pudo agregar el producto al carrito.");
+        if (err.message !== SESSION_EXPIRED_MESSAGE) {
+          const message = err.message || "No se pudo agregar el producto al carrito.";
+          setCartError(message);
+          notifyError(message);
+        }
+      })
+      .finally(() => {
+        setIsMutatingCart(false);
       });
   };
 
   const removeFromCart = (cartItemId) => {
+    setIsMutatingCart(true);
+    setCartError("");
+
     requestJson(
       `${API_BASE_URL}/cart/${cartItemId}`,
       { method: "DELETE" },
       "No se pudo eliminar el producto del carrito.",
     )
       .then(refreshCart)
+      .then(() => {
+        success("Producto eliminado del carrito.");
+      })
       .catch((err) => {
         console.error(err);
-        notifyError("No se pudo eliminar el producto del carrito.");
+        if (err.message !== SESSION_EXPIRED_MESSAGE) {
+          const message = err.message || "No se pudo eliminar el producto del carrito.";
+          setCartError(message);
+          notifyError(message);
+        }
+      })
+      .finally(() => {
+        setIsMutatingCart(false);
       });
   };
 
   const decreaseFromCart = (cartItemId) => {
+    setIsMutatingCart(true);
+    setCartError("");
+
     requestJson(
       `${API_BASE_URL}/cart/${cartItemId}/decrease`,
       { method: "PATCH" },
       "No se pudo actualizar la cantidad del producto.",
     )
       .then(refreshCart)
+      .then(() => {
+        info("Cantidad actualizada.");
+      })
       .catch((err) => {
         console.error(err);
-        notifyError("No se pudo actualizar la cantidad del producto.");
+        if (err.message !== SESSION_EXPIRED_MESSAGE) {
+          const message = err.message || "No se pudo actualizar la cantidad del producto.";
+          setCartError(message);
+          notifyError(message);
+        }
+      })
+      .finally(() => {
+        setIsMutatingCart(false);
       });
   };
 
@@ -237,6 +317,9 @@ export function CartProvider({ children, user }) {
       value={{
         cart,
         total,
+        cartLoading,
+        cartError,
+        isMutatingCart,
         addToCart,
         removeFromCart,
         checkout,

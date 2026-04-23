@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNotification } from "../Notifications/NotificationProvider";
+import {
+  buildAuthHeaders,
+  clearStoredAuth,
+  isUnauthorizedResponse,
+  SESSION_EXPIRED_MESSAGE,
+} from "../utils/authSession";
 import "./AdminPanel.css";
 
 const initialForm = {
@@ -13,13 +19,19 @@ const initialForm = {
 
 const API_BASE_URL = "http://localhost:3000/api";
 
-function AdminPanel({ user }) {
+function AdminPanel({ user, onSessionExpired }) {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const { success, error: notifyError, warning } = useNotification();
+
+  const notifySessionExpired = () => {
+    clearStoredAuth();
+    onSessionExpired?.();
+    warning(SESSION_EXPIRED_MESSAGE);
+  };
 
   const loadProducts = async () => {
     setLoading(true);
@@ -51,17 +63,22 @@ function AdminPanel({ user }) {
     try {
       const response = await fetch(`${API_BASE_URL}/products`, {
         method: "POST",
-        headers: {
+        headers: buildAuthHeaders({
           "Content-Type": "application/json",
           "x-user-email": user?.email || "",
-        },
+        }),
         body: JSON.stringify(form),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
+
+      if (isUnauthorizedResponse(response)) {
+        notifySessionExpired();
+        return;
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Error al crear producto");
+        throw new Error(data?.error || "Error al crear producto");
       }
 
       setProducts((prev) => [data, ...prev]);
@@ -79,10 +96,15 @@ function AdminPanel({ user }) {
     try {
       const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
         method: "DELETE",
-        headers: {
+        headers: buildAuthHeaders({
           "x-user-email": user?.email || "",
-        },
+        }),
       });
+
+      if (isUnauthorizedResponse(response)) {
+        notifySessionExpired();
+        return;
+      }
 
       if (!response.ok) {
         const data = await response.json();

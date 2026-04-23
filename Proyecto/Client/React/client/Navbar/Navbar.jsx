@@ -14,7 +14,16 @@ function Navbar({ user, setUser }) {
   const loginRef = useRef();
   const cartRef = useRef();
 
-  const { cart, total, removeFromCart, decreaseFromCart, checkout } = useCart();
+  const {
+    cart,
+    total,
+    cartLoading,
+    cartError,
+    isMutatingCart,
+    removeFromCart,
+    decreaseFromCart,
+    checkout,
+  } = useCart();
 
   const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -134,10 +143,16 @@ function Navbar({ user, setUser }) {
           </button>
         </div>
 
-        {cart.length === 0 ? (
-          <p className="empty">Vacío</p>
+        {cartLoading ? (
+          <p className="empty">Cargando carrito...</p>
+        ) : cartError ? (
+          <p className="empty cart-error">{cartError}</p>
+        ) : cart.length === 0 ? (
+          <p className="empty">Tu carrito está vacío.</p>
         ) : (
           <>
+            {isMutatingCart && <p className="cart-status">Actualizando carrito...</p>}
+
             <div className="cart-items">
               {cart.map((item) => (
                 <div key={item.id} className="cart-item">
@@ -147,9 +162,19 @@ function Navbar({ user, setUser }) {
                   </div>
 
                   <div className="quantity-controls">
-                    <button onClick={() => decreaseFromCart(item.id)}>-</button>
+                    <button
+                      onClick={() => decreaseFromCart(item.id)}
+                      disabled={isMutatingCart}
+                    >
+                      -
+                    </button>
                     <span>{item.quantity}</span>
-                    <button onClick={() => removeFromCart(item.id)}>🗑</button>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      disabled={isMutatingCart}
+                    >
+                      🗑
+                    </button>
                   </div>
                 </div>
               ))}
@@ -159,6 +184,7 @@ function Navbar({ user, setUser }) {
               <strong>Total: ${total}</strong>
               <button
                 className="checkout"
+                disabled={isMutatingCart}
                 onClick={() => {
                   checkout();
                   setShowCart(false);

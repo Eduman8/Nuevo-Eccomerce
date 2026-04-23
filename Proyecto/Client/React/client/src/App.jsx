@@ -8,8 +8,9 @@ import { CartProvider } from "../Context/CartContext.jsx";
 import AdminPanel from "../Admin/AdminPanel";
 import CheckoutPage from "../Checkout/CheckoutPage";
 import { NotificationProvider } from "../Notifications/NotificationProvider";
+import { clearStoredAuth } from "../utils/authSession";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import "../Styles/global.css";
 
 function App() {
@@ -17,6 +18,11 @@ function App() {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
+
+  const handleSessionExpired = useCallback(() => {
+    clearStoredAuth();
+    setUser(null);
+  }, []);
 
   useEffect(() => {
     if (user) localStorage.setItem("user", JSON.stringify(user));
@@ -28,12 +34,11 @@ function App() {
     if (user.role !== "admin") return <Navigate to="/" replace />;
     return children;
   }
-  console.log("USER APP:", user);
-  console.log("USER ROLE:", user?.role);
+
   return (
     <NotificationProvider>
       <BrowserRouter>
-        <CartProvider user={user}>
+        <CartProvider user={user} onSessionExpired={handleSessionExpired}>
           <Navbar user={user} setUser={setUser} />
 
           <Routes>
@@ -44,7 +49,7 @@ function App() {
               path="/admin"
               element={
                 <AdminRoute user={user}>
-                  <AdminPanel user={user} />
+                  <AdminPanel user={user} onSessionExpired={handleSessionExpired} />
                 </AdminRoute>
               }
             />
@@ -53,7 +58,7 @@ function App() {
               path="/orders"
               element={
                 <ProtectedRoute user={user}>
-                  <Orders user={user} />
+                  <Orders user={user} onSessionExpired={handleSessionExpired} />
                 </ProtectedRoute>
               }
             />
