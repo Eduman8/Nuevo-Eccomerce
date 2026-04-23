@@ -24,6 +24,10 @@ const createCartService = (cartRepository) => ({
           status: 409,
           payload: {
             error: `Stock insuficiente. Disponible: ${availableStock}`,
+            productId: Number(productId),
+            availableStock,
+            requestedQuantity,
+            currentQuantity,
           },
         };
       }
@@ -40,6 +44,10 @@ const createCartService = (cartRepository) => ({
         status: 409,
         payload: {
           error: `Stock insuficiente. Disponible: ${availableStock}`,
+          productId: Number(productId),
+          availableStock,
+          requestedQuantity: normalizedQuantity,
+          currentQuantity: 0,
         },
       };
     }

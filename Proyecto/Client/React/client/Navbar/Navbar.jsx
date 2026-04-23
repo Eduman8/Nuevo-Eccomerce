@@ -26,6 +26,11 @@ function Navbar({ user, setUser }) {
   } = useCart();
 
   const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const hasCartStockConflict = cart.some(
+    (item) => Number(item.quantity) > Number(item.stock || 0),
+  );
+  const hasBlockingStockError =
+    hasCartStockConflict || /stock insuficiente|agotado/i.test(cartError || "");
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -146,12 +151,14 @@ function Navbar({ user, setUser }) {
 
         {cartLoading ? (
           <p className="empty">Cargando carrito...</p>
-        ) : cartError ? (
-          <p className="empty cart-error">{cartError}</p>
         ) : cart.length === 0 ? (
-          <p className="empty">Tu carrito está vacío.</p>
+          <>
+            {cartError && <p className="cart-alert cart-alert-error">{cartError}</p>}
+            <p className="empty">Tu carrito está vacío.</p>
+          </>
         ) : (
           <>
+            {cartError && <p className="cart-alert cart-alert-error">{cartError}</p>}
             {isMutatingCart && <p className="cart-status">Actualizando carrito...</p>}
 
             <div className="cart-items">
@@ -185,7 +192,7 @@ function Navbar({ user, setUser }) {
               <strong>Total: ${total}</strong>
               <button
                 className="checkout"
-                disabled={isMutatingCart}
+                disabled={isMutatingCart || hasBlockingStockError}
                 onClick={() => {
                   checkout();
                   setShowCart(false);
@@ -194,6 +201,11 @@ function Navbar({ user, setUser }) {
               >
                 Ir a finalizar compra
               </button>
+              {hasBlockingStockError && (
+                <p className="cart-alert cart-alert-warning">
+                  Revisá el carrito para continuar: hay productos sin stock suficiente.
+                </p>
+              )}
             </div>
           </>
         )}
