@@ -143,6 +143,62 @@ const createOrdersController = (ordersService) => ({
     }
   },
 
+  updateOrderStatusAsAdmin: async (req, res, next) => {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    try {
+      const order = await ordersService.updateOrderStatusAsAdmin({
+        orderId,
+        status,
+      });
+      return res.json(order);
+    } catch (err) {
+      if (err.status && err.message) {
+        return next(
+          createHttpError({
+            status: err.status,
+            payload: { error: err.message },
+          }),
+        );
+      }
+
+      return next(
+        createHttpError({
+          status: 500,
+          payload: { error: "Error al actualizar estado de la orden" },
+          logError: err,
+        }),
+      );
+    }
+  },
+
+  deleteOrderAsAdmin: async (req, res, next) => {
+    const { orderId } = req.params;
+
+    try {
+      const result = await ordersService.deleteOrderAsAdmin(orderId);
+      return res.json(result);
+    } catch (err) {
+      if (err.status && err.message) {
+        return next(
+          createHttpError({
+            status: err.status,
+            payload: { error: err.message },
+          }),
+        );
+      }
+
+      return next(
+        createHttpError({
+          status: 500,
+          payload: { error: "Error al eliminar la orden" },
+          logError: err,
+        }),
+      );
+    }
+  },
+
 
   getAdminOrders: async (_req, res, next) => {
     try {

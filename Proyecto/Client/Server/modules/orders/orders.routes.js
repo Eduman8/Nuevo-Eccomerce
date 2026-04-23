@@ -42,6 +42,18 @@ const createOrdersRouter = ({
     asyncHandler(ordersController.getAdminOrders),
   );
 
+  router.patch(
+    "/admin/:orderId/status",
+    requireAdmin,
+    asyncHandler(ordersController.updateOrderStatusAsAdmin),
+  );
+
+  router.delete(
+    "/admin/:orderId",
+    requireAdmin,
+    asyncHandler(ordersController.deleteOrderAsAdmin),
+  );
+
   router.post(
     "/:orderId/checkout-pro-preference",
     asyncHandler(ordersController.createCheckoutProPreference),

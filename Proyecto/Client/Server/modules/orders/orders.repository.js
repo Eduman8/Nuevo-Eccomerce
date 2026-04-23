@@ -89,6 +89,19 @@ const createOrdersRepository = (pool) => ({
     return result.rows[0] || null;
   },
 
+  deleteOrderById: async ({ orderId, client = null }) => {
+    const executor = client || pool;
+
+    await executor.query("DELETE FROM order_items WHERE order_id = $1", [orderId]);
+
+    const result = await executor.query(
+      "DELETE FROM orders WHERE id = $1 RETURNING id",
+      [orderId],
+    );
+
+    return result.rows[0] || null;
+  },
+
 
 
   getAdminOrdersWithUsersAndItems: async () => {
