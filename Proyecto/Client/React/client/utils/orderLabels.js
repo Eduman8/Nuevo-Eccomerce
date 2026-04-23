@@ -1,6 +1,8 @@
 const ORDER_STATUS_LABELS = {
   pending: "Pendiente",
   paid: "Pagado",
+  shipped: "Enviado",
+  delivered: "Entregado",
   approved: "Aprobado",
   rejected: "Rechazado",
   cancelled: "Cancelado",
@@ -42,4 +44,3 @@ export const getOrderStatusLabel = (value) => getLabelFromMap(value, ORDER_STATU
 export const getShippingMethodLabel = (value) => getLabelFromMap(value, SHIPPING_METHOD_LABELS);
 
 export const getPaymentMethodLabel = (value) => getLabelFromMap(value, PAYMENT_METHOD_LABELS);
-

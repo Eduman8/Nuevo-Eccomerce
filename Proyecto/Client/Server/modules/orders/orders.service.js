@@ -148,6 +148,8 @@ const assertValidOrderTransition = ({ currentStatus, nextStatus }) => {
   }
 };
 
+const normalizeOrderStatus = (status) => String(status || "").trim().toLowerCase();
+
 const createOrdersService = ({
   ordersRepository,
   mercadopagoClient,
@@ -523,7 +525,9 @@ const createOrdersService = ({
   },
 
   updateOrderStatus: async ({ orderId, status, userId }) => {
-    if (!VALID_ORDER_STATUSES.includes(status)) {
+    const normalizedStatus = normalizeOrderStatus(status);
+
+    if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
       throw {
         status: 400,
         message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
@@ -539,15 +543,67 @@ const createOrdersService = ({
     assertOrderOwnership(order, userId);
     assertValidOrderTransition({
       currentStatus: order.status,
-      nextStatus: status,
+      nextStatus: normalizedStatus,
     });
 
     const updatedOrder = await ordersRepository.updateOrderStatusById({
-      status,
+      status: normalizedStatus,
       orderId,
     });
 
     return updatedOrder;
+  },
+
+  updateOrderStatusAsAdmin: async ({ orderId, status }) => {
+    const normalizedStatus = normalizeOrderStatus(status);
+
+    if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
+      throw {
+        status: 400,
+        message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
+      };
+    }
+
+    const order = await ordersRepository.getOrderById(orderId);
+    if (!order) {
+      throw { status: 404, message: "Orden no encontrada" };
+    }
+
+    if (order.status === normalizedStatus) {
+      throw {
+        status: 409,
+        message: `La orden ya se encuentra en estado ${normalizedStatus}`,
+      };
+    }
+
+    const updatedOrder = await ordersRepository.updateOrderStatusById({
+      orderId,
+      status: normalizedStatus,
+    });
+
+    return updatedOrder;
+  },
+
+  deleteOrderAsAdmin: async (orderId) => {
+    const order = await ordersRepository.getOrderById(orderId);
+    if (!order) {
+      throw { status: 404, message: "Orden no encontrada" };
+    }
+
+    const client = await ordersRepository.connect();
+
+    try {
+      await client.query("BEGIN");
+      await ordersRepository.deleteOrderById({ orderId, client });
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    return { message: `Pedido #${orderId} eliminado correctamente` };
   },
 
 
