@@ -33,8 +33,11 @@ function CheckoutPage({ user }) {
   const [orderSummary, setOrderSummary] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState({ type: "", message: "" });
+  const [loadingAction, setLoadingAction] = useState("");
   const [mpConfirmed, setMpConfirmed] = useState(false);
+
+  const isProcessing = loadingAction !== "";
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -42,7 +45,35 @@ function CheckoutPage({ user }) {
     const status = params.get("status") || params.get("collection_status");
     const paymentId = params.get("payment_id") || params.get("collection_id");
     const orderId = params.get("order_id") || params.get("external_reference");
-    const isApprovedReturn = paymentStatus === "success" || status === "approved";
+
+    if (!paymentStatus && !status) {
+      return;
+    }
+
+    const normalizedStatus = String(paymentStatus || status || "").toLowerCase();
+    const isApprovedReturn =
+      normalizedStatus === "success" || normalizedStatus === "approved";
+
+    if (normalizedStatus === "pending" || normalizedStatus === "in_process") {
+      setNotice({
+        type: "warning",
+        message: "Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.",
+      });
+      setSuccess("");
+      setError("");
+      return;
+    }
+
+    if (
+      normalizedStatus === "failure" ||
+      normalizedStatus === "rejected" ||
+      normalizedStatus === "cancelled"
+    ) {
+      setError("El pago fue rechazado o cancelado. Podés intentarlo nuevamente.");
+      setSuccess("");
+      setNotice({ type: "", message: "" });
+      return;
+    }
 
     if (!isApprovedReturn || !paymentId || !orderId || !user || mpConfirmed) {
       return;
@@ -53,23 +84,30 @@ function CheckoutPage({ user }) {
       : Number(orderId);
 
     if (!orderIdValue) {
+      setError("No se pudo identificar la orden a confirmar.");
       return;
     }
 
     const confirmMercadoPago = async () => {
       try {
-        setLoading(true);
+        setLoadingAction("confirm_mp");
+        setError("");
+        setSuccess("");
+        setNotice({ type: "info", message: "Confirmando tu pago con Mercado Pago..." });
+
         const result = await confirmMercadoPagoOrder({
           orderId: orderIdValue,
           paymentId,
         });
+
         setSuccess(`Pago aprobado y orden confirmada (#${result.orderId}).`);
+        setNotice({ type: "", message: "" });
         setMpConfirmed(true);
         setTimeout(() => navigate("/orders"), 1200);
       } catch (err) {
-        setError(err.message);
+        setError(err.message || "Ocurrió un error inesperado al confirmar tu pago.");
       } finally {
-        setLoading(false);
+        setLoadingAction("");
       }
     };
 
@@ -113,8 +151,9 @@ function CheckoutPage({ user }) {
     try {
       setError("");
       setSuccess("");
+      setNotice({ type: "", message: "" });
       validateForm();
-      setLoading(true);
+      setLoadingAction("create_order");
 
       const pendingOrder = await createPendingOrder({
         shippingAddress: address,
@@ -123,11 +162,12 @@ function CheckoutPage({ user }) {
       });
 
       setOrderSummary(pendingOrder);
-      setSuccess("Orden creada en estado pending.");
+      setSuccess("Orden creada correctamente. Ahora podés continuar con el pago.");
+      setNotice({ type: "", message: "" });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Ocurrió un error inesperado al crear la orden.");
     } finally {
-      setLoading(false);
+      setLoadingAction("");
     }
   };
 
@@ -140,7 +180,8 @@ function CheckoutPage({ user }) {
         throw new Error("Primero debes crear la orden pendiente.");
       }
 
-      setLoading(true);
+      setLoadingAction("start_mp");
+      setNotice({ type: "info", message: "Preparando el pago. Serás redirigido a Mercado Pago..." });
 
       const preference = await createMercadoPagoPreference(orderSummary.order.id);
 
@@ -150,8 +191,9 @@ function CheckoutPage({ user }) {
 
       window.location.href = preference.init_point;
     } catch (err) {
-      setError(err.message);
-      setLoading(false);
+      setNotice({ type: "", message: "" });
+      setError(err.message || "Ocurrió un error inesperado al iniciar el pago.");
+      setLoadingAction("");
     }
   };
 
@@ -159,6 +201,7 @@ function CheckoutPage({ user }) {
     try {
       setError("");
       setSuccess("");
+      setNotice({ type: "", message: "" });
 
       if (!orderSummary?.order?.id) {
         throw new Error("Primero debes crear la orden pendiente.");
@@ -168,19 +211,30 @@ function CheckoutPage({ user }) {
         throw new Error("La referencia de envío debe tener al menos 3 caracteres.");
       }
 
-      setLoading(true);
+      setLoadingAction("confirm_cash");
 
       const result = await confirmCashOrder({
         orderId: orderSummary.order.id,
         shippingReference,
       });
 
+      const normalizedStatus = String(result?.status || "").toLowerCase();
+
+      if (normalizedStatus.includes("pending")) {
+        setNotice({
+          type: "warning",
+          message: "La compra quedó pendiente de validación. Te notificaremos cuando se confirme.",
+        });
+      } else {
+        setNotice({ type: "", message: "" });
+      }
+
       setSuccess(`Compra confirmada. Estado final: ${result.status}.`);
       setTimeout(() => navigate("/orders"), 1000);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Ocurrió un error inesperado al confirmar la compra.");
     } finally {
-      setLoading(false);
+      setLoadingAction("");
     }
   };
 
@@ -192,15 +246,19 @@ function CheckoutPage({ user }) {
 
       <AddressStep address={address} onChange={updateAddress} />
       <ShippingStep shippingMethod={shippingMethod} onChange={setShippingMethod} />
-      <PaymentStep paymentMethod={paymentMethod} onMethodChange={setPaymentMethod} />
+      <PaymentStep
+        paymentMethod={paymentMethod}
+        onMethodChange={setPaymentMethod}
+        disabled={isProcessing}
+      />
 
       {!orderSummary ? (
-        <button onClick={handleCreateOrder} disabled={loading}>
-          {loading ? "Creando orden..." : "Crear orden pendiente"}
+        <button onClick={handleCreateOrder} disabled={isProcessing}>
+          {loadingAction === "create_order" ? "Creando orden..." : "Crear orden pendiente"}
         </button>
       ) : paymentMethod === "mercadopago" ? (
-        <button onClick={handleMercadoPagoCheckout} disabled={loading}>
-          {loading ? "Redirigiendo..." : "Pagar con Mercado Pago"}
+        <button onClick={handleMercadoPagoCheckout} disabled={isProcessing}>
+          {loadingAction === "start_mp" ? "Redirigiendo a Mercado Pago..." : "Pagar con Mercado Pago"}
         </button>
       ) : (
         <ConfirmationStep
@@ -208,10 +266,11 @@ function CheckoutPage({ user }) {
           shippingReference={shippingReference}
           onShippingReferenceChange={setShippingReference}
           onConfirmCash={handleConfirmCashOrder}
-          loading={loading}
+          loading={isProcessing}
         />
       )}
 
+      {notice.message && <p className={`checkout-notice checkout-notice-${notice.type}`}>{notice.message}</p>}
       {error && <p className="checkout-error">{error}</p>}
       {success && <p className="checkout-success">{success}</p>}
     </div>

@@ -13,10 +13,11 @@ function ConfirmationStep({ orderSummary, shippingReference, onShippingReference
         placeholder="Referencia de envío / observación"
         value={shippingReference}
         onChange={(e) => onShippingReferenceChange(e.target.value)}
+        disabled={loading}
       />
 
       <button onClick={onConfirmCash} disabled={loading}>
-        {loading ? "Confirmando..." : "Confirmar compra en efectivo"}
+        {loading ? "Confirmando compra..." : "Confirmar compra en efectivo"}
       </button>
     </section>
   );

@@ -8,6 +8,15 @@
   box-shadow: var(--shadow);
 }
 
+.order-state {
+  margin-top: 0.9rem;
+  color: var(--text-muted);
+}
+
+.order-state-error {
+  color: #d93025;
+}
+
 .order-list {
   margin-top: 12px;
   display: grid;

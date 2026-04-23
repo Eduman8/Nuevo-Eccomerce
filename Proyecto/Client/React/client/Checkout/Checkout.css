@@ -56,3 +56,22 @@
   color: var(--success);
   font-weight: 700;
 }
+
+
+.checkout-page button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.checkout-notice {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.checkout-notice-info {
+  color: var(--text-muted);
+}
+
+.checkout-notice-warning {
+  color: #b26a00;
+}
