@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 function productCard({ product }) {
   const { addToCart } = useCart();
   const navigate = useNavigate();
+  const hasStock = Number(product?.stock || 0) > 0;
 
   return (
     <div
@@ -14,7 +15,16 @@ function productCard({ product }) {
       <img src={product.image} alt={product.name} />
       <h3>{product.name}</h3>
       <p>${product.price}</p>
-      <button onClick={() => addToCart(product)}>Agregar al carrito</button>
+      {!hasStock && <p>Sin stock</p>}
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          addToCart(product);
+        }}
+        disabled={!hasStock}
+      >
+        {hasStock ? "Agregar al carrito" : "Producto agotado"}
+      </button>
     </div>
   );
 }

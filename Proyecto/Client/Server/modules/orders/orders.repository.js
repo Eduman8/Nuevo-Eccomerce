@@ -1,7 +1,8 @@
 const createOrdersRepository = (pool) => ({
-  getCartWithPricesByUserId: async (userId) => {
-    const cartResult = await pool.query(
-      `SELECT c.*, p.price
+  getCartWithPricesByUserId: async (userId, client = null) => {
+    const executor = client || pool;
+    const cartResult = await executor.query(
+      `SELECT c.*, p.price, p.stock, p.name
        FROM cart_items c
        JOIN products p ON c.product_id = p.id
        WHERE c.user_id = $1`,
@@ -9,6 +10,20 @@ const createOrdersRepository = (pool) => ({
     );
 
     return cartResult.rows;
+  },
+
+  getOrderItemsByOrderId: async (orderId, client = null) => {
+    const executor = client || pool;
+    const result = await executor.query(
+      `SELECT oi.quantity, oi.price, p.name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = $1
+       ORDER BY oi.id ASC`,
+      [orderId],
+    );
+
+    return result.rows;
   },
 
   createOrder: async ({
@@ -59,18 +74,6 @@ const createOrdersRepository = (pool) => ({
     return orderResult.rows[0] || null;
   },
 
-  getCartItemsForPreferenceByUserId: async (userId) => {
-    const cartResult = await pool.query(
-      `SELECT c.quantity, p.name, p.price
-       FROM cart_items c
-       JOIN products p ON p.id = c.product_id
-       WHERE c.user_id = $1`,
-      [userId],
-    );
-
-    return cartResult.rows;
-  },
-
   updateOrderPreferenceId: async ({ preferenceId, orderId }) => {
     await pool.query("UPDATE orders SET mp_preference_id = $1 WHERE id = $2", [
       preferenceId,
@@ -101,8 +104,6 @@ const createOrdersRepository = (pool) => ({
 
     return result.rows[0] || null;
   },
-
-
 
   getAdminOrdersWithUsersAndItems: async () => {
     const result = await pool.query(

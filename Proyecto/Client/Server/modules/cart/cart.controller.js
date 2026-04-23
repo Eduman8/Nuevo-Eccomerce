@@ -8,6 +8,15 @@ const createCartController = (cartService) => ({
       const item = await cartService.addToCart({ userId, productId, quantity });
       res.json(item);
     } catch (err) {
+      if (err.status) {
+        return next(
+          createHttpError({
+            status: err.status,
+            payload: err.payload,
+          }),
+        );
+      }
+
       return next(
         createHttpError({
           status: 500,

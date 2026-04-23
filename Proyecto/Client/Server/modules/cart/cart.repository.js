@@ -7,6 +7,14 @@ const createCartRepository = (pool) => ({
     return result.rows;
   },
 
+  getProductById: async (productId) => {
+    const result = await pool.query(
+      "SELECT id, name, stock FROM products WHERE id = $1",
+      [productId],
+    );
+    return result.rows[0] || null;
+  },
+
   increaseQuantity: async ({ quantity, userId, productId }) => {
     const result = await pool.query(
       "UPDATE cart_items SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3 RETURNING *",
@@ -25,7 +33,7 @@ const createCartRepository = (pool) => ({
 
   getByUserId: async (userId) => {
     const result = await pool.query(
-      `SELECT c.*, p.name, p.price
+      `SELECT c.*, p.name, p.price, p.stock
       FROM cart_items c
       JOIN products p ON c.product_id = p.id
       WHERE c.user_id = $1`,
@@ -41,11 +49,20 @@ const createCartRepository = (pool) => ({
 
   getItemById: async (id) => {
     const itemResult = await pool.query(
-      "SELECT id, quantity FROM cart_items WHERE id = $1",
+      "SELECT id, quantity, product_id FROM cart_items WHERE id = $1",
       [id],
     );
 
     return itemResult.rows[0] || null;
+  },
+
+  updateQuantityById: async ({ id, quantity }) => {
+    const updated = await pool.query(
+      "UPDATE cart_items SET quantity = $1 WHERE id = $2 RETURNING *",
+      [quantity, id],
+    );
+
+    return updated.rows[0] || null;
   },
 
   decreaseQuantityById: async (id) => {

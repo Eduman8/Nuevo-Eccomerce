@@ -29,6 +29,29 @@ export function CartProvider({ children, user, onSessionExpired }) {
     }
   };
 
+  const notifyStockAdjustments = (previousCart, nextCart) => {
+    if (!Array.isArray(previousCart) || !Array.isArray(nextCart)) return;
+
+    const nextByProduct = new Map(
+      nextCart.map((item) => [String(item.product_id), item]),
+    );
+
+    for (const prevItem of previousCart) {
+      const current = nextByProduct.get(String(prevItem.product_id));
+
+      if (!current) {
+        warning(`${prevItem.name} fue removido del carrito porque no tiene stock.`);
+        continue;
+      }
+
+      if (Number(current.quantity) < Number(prevItem.quantity)) {
+        warning(
+          `Ajustamos ${prevItem.name} a ${current.quantity} unidad(es) por stock disponible.`,
+        );
+      }
+    }
+  };
+
   const requestJson = async (
     url,
     options = {},
@@ -105,6 +128,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
     )
       .then((payload) => normalizeCartPayload(payload))
       .then((items) => {
+        notifyStockAdjustments(cart, items);
         setCart(items);
         setCartError("");
         return items;
@@ -125,6 +149,11 @@ export function CartProvider({ children, user, onSessionExpired }) {
   const addToCart = (product) => {
     if (!user) {
       warning("Tenés que iniciar sesión para agregar productos al carrito.");
+      return;
+    }
+
+    if (Number(product?.stock || 0) <= 0) {
+      warning("Producto agotado.");
       return;
     }
 
@@ -235,35 +264,17 @@ export function CartProvider({ children, user, onSessionExpired }) {
           ...checkoutData,
         }),
       },
-      "No se pudo iniciar la compra.",
+      "No se pudo validar el checkout.",
     );
   };
 
-  const createMercadoPagoPreference = async (orderId) => {
+  const createMercadoPagoPreference = async (checkoutData) => {
     if (!user) {
       throw new Error("Debes iniciar sesión para pagar.");
     }
 
-    return requestJson(
-      `${API_BASE_URL}/orders/${orderId}/checkout-pro-preference`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId: user.id }),
-      },
-      "No se pudo crear la preferencia de pago.",
-    );
-  };
-
-  const confirmCashOrder = async ({ orderId, shippingReference }) => {
-    if (!user) {
-      throw new Error("Debes iniciar sesión para confirmar.");
-    }
-
     const payload = await requestJson(
-      `${API_BASE_URL}/orders/${orderId}/confirm-cash`,
+      `${API_BASE_URL}/orders/checkout/mercadopago`,
       {
         method: "POST",
         headers: {
@@ -271,6 +282,37 @@ export function CartProvider({ children, user, onSessionExpired }) {
         },
         body: JSON.stringify({
           userId: user.id,
+          ...checkoutData,
+        }),
+      },
+      "No se pudo iniciar el pago con Mercado Pago.",
+    );
+
+    return payload.preference;
+  };
+
+  const confirmCashOrder = async ({
+    shippingAddress,
+    shippingMethod,
+    paymentMethod,
+    shippingReference,
+  }) => {
+    if (!user) {
+      throw new Error("Debes iniciar sesión para confirmar.");
+    }
+
+    const payload = await requestJson(
+      `${API_BASE_URL}/orders/checkout/cash`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          shippingAddress,
+          shippingMethod,
+          paymentMethod,
           shippingReference,
         }),
       },

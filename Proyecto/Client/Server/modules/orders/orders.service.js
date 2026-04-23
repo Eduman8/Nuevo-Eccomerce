@@ -1,7 +1,6 @@
 const { Preference } = require("mercadopago");
 const {
   hasValidMercadoPagoTokenFormat,
-  canUseMercadoPagoAutoReturn,
 } = require("../payments/mercadopago.helpers");
 
 const ORDER_STATUS = {
@@ -101,7 +100,6 @@ const assertConfirmableOrder = (order) => {
   }
 };
 
-
 const mapShippingAddress = (shippingAddress) => {
   const parsed = parseJsonIfNeeded(shippingAddress);
 
@@ -119,7 +117,10 @@ const mapShippingAddress = (shippingAddress) => {
   const streetValue = String(parsed.street || parsed.address || "").trim();
   const streetMatch = streetValue.match(/^(.*?)(?:\s+(\d+[\w-]*))?$/);
   const baseAddress = String(streetMatch?.[1] || "").trim() || null;
-  const addressNumber = String(parsed.addressNumber || parsed.address_number || streetMatch?.[2] || "").trim() || null;
+  const addressNumber =
+    String(
+      parsed.addressNumber || parsed.address_number || streetMatch?.[2] || "",
+    ).trim() || null;
 
   return {
     raw: parsed,
@@ -127,7 +128,8 @@ const mapShippingAddress = (shippingAddress) => {
     addressNumber,
     city: parsed.city || null,
     province: parsed.province || parsed.state || null,
-    postalCode: parsed.postalCode || parsed.postal_code || parsed.zipCode || null,
+    postalCode:
+      parsed.postalCode || parsed.postal_code || parsed.zipCode || null,
   };
 };
 
@@ -158,15 +160,8 @@ const createOrdersService = ({
   BACKEND_BASE_URL = process.env.BACKEND_BASE_URL,
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
-}) => ({
-  createOrder: async (
-    userId,
-    { shippingAddress, shippingMethod, paymentMethod },
-  ) => {
-    if (!userId) {
-      throw { status: 400, message: "userId es obligatorio" };
-    }
-
+}) => {
+  const validateCheckoutInput = ({ shippingAddress, shippingMethod, paymentMethod }) => {
     if (
       !shippingAddress ||
       !shippingAddress.street ||
@@ -203,216 +198,417 @@ const createOrdersService = ({
       };
     }
 
-    const cart = await ordersRepository.getCartWithPricesByUserId(userId);
+    return { normalizedShippingMethod, normalizedPaymentMethod };
+  };
 
+  const syncAndGetCart = async (client, userId) => {
+    const cart = await ordersRepository.getCartWithPricesByUserId(userId, client);
+    const adjustments = [];
+
+    for (const item of cart) {
+      const stock = Number(item.stock || 0);
+      const quantity = Number(item.quantity || 0);
+
+      if (stock <= 0) {
+        await client.query("DELETE FROM cart_items WHERE id = $1", [item.id]);
+        adjustments.push({
+          type: "removed",
+          productId: item.product_id,
+          name: item.name,
+          available: 0,
+          requested: quantity,
+        });
+        continue;
+      }
+
+      if (quantity > stock) {
+        await client.query("UPDATE cart_items SET quantity = $1 WHERE id = $2", [
+          stock,
+          item.id,
+        ]);
+        adjustments.push({
+          type: "adjusted",
+          productId: item.product_id,
+          name: item.name,
+          available: stock,
+          requested: quantity,
+        });
+      }
+    }
+
+    const syncedCart = await ordersRepository.getCartWithPricesByUserId(userId, client);
+    return { cart: syncedCart, adjustments };
+  };
+
+  const assertCartStock = (cart) => {
     if (cart.length === 0) {
       throw { status: 400, message: "Carrito vacío" };
     }
 
+    const stockIssues = cart
+      .filter((item) => Number(item.stock) < Number(item.quantity))
+      .map((item) => ({
+        productId: item.product_id,
+        name: item.name,
+        available: Number(item.stock),
+        requested: Number(item.quantity),
+      }));
+
+    if (stockIssues.length > 0) {
+      throw {
+        status: 409,
+        message: "Stock insuficiente para algunos productos",
+        details: stockIssues,
+      };
+    }
+  };
+
+  const buildBreakdown = ({ cart, shippingMethod }) => {
     const subtotal = cart.reduce(
       (acc, item) => acc + Number(item.price) * Number(item.quantity),
       0,
     );
 
-    const shippingCost =
-      normalizedShippingMethod === "home_delivery" ? 3000 : 0;
-
+    const shippingCost = shippingMethod === "home_delivery" ? 3000 : 0;
     const total = Number((subtotal + shippingCost).toFixed(2));
 
-    const client = await ordersRepository.connect();
+    return { subtotal, shippingCost, total };
+  };
 
-    try {
-      await client.query("BEGIN");
+  const createOrderAndItems = async ({
+    client,
+    userId,
+    cart,
+    shippingAddress,
+    shippingMethod,
+    paymentMethod,
+    breakdown,
+  }) => {
+    const order = await ordersRepository.createOrder({
+      total: breakdown.total,
+      userId,
+      status: ORDER_STATUS.PENDING,
+      shippingMethod,
+      shippingCost: breakdown.shippingCost,
+      shippingAddress: JSON.stringify({
+        ...shippingAddress,
+        country: "Argentina",
+      }),
+      paymentMethod,
+      client,
+    });
 
-      const order = await ordersRepository.createOrder({
-        total,
-        userId,
-        status: ORDER_STATUS.PENDING,
-        shippingMethod: normalizedShippingMethod,
-        shippingCost,
-        shippingAddress: JSON.stringify({
-          ...shippingAddress,
-          country: "Argentina",
-        }),
-        paymentMethod: normalizedPaymentMethod,
-        client,
-      });
-
-      for (const item of cart) {
-        await client.query(
-          `INSERT INTO order_items (order_id, product_id, quantity, price)
+    for (const item of cart) {
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, quantity, price)
          VALUES ($1, $2, $3, $4)`,
-          [order.id, item.product_id, item.quantity, item.price],
-        );
+        [order.id, item.product_id, item.quantity, item.price],
+      );
+    }
+
+    return order;
+  };
+
+  return {
+    createOrder: async (
+      userId,
+      { shippingAddress, shippingMethod, paymentMethod },
+    ) => {
+      if (!userId) {
+        throw { status: 400, message: "userId es obligatorio" };
       }
 
-      await client.query("COMMIT");
+      const { normalizedShippingMethod, normalizedPaymentMethod } =
+        validateCheckoutInput({ shippingAddress, shippingMethod, paymentMethod });
 
-      return {
-        message: "Orden pendiente creada",
-        order,
-        breakdown: { subtotal, shippingCost, total },
-      };
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
+      const client = await ordersRepository.connect();
 
-  createCheckoutProPreference: async (orderId, userId) => {
-    if (!mercadopagoClient) {
-      throw {
-        status: 500,
-        message:
-          "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
-      };
-    }
+      try {
+        await client.query("BEGIN");
+        const { cart, adjustments } = await syncAndGetCart(client, userId);
+        assertCartStock(cart);
+        const breakdown = buildBreakdown({
+          cart,
+          shippingMethod: normalizedShippingMethod,
+        });
+        await client.query("COMMIT");
 
-    if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
-      throw {
-        status: 500,
-        message:
-          "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
-      };
-    }
-
-    if (!BACKEND_BASE_URL) {
-      throw {
-        status: 500,
-        message: "BACKEND_BASE_URL no está configurado",
-      };
-    }
-
-    const order = await ordersRepository.getOrderById(orderId);
-
-    if (!order) {
-      throw { status: 404, message: "Orden no encontrada" };
-    }
-    if (String(order.user_id) !== String(userId)) {
-      throw { status: 403, message: "No autorizado para esta orden" };
-    }
-
-    if (order.status !== ORDER_STATUS.PENDING) {
-      throw {
-        status: 409,
-        message: `La orden no puede pagarse en estado ${order.status}`,
-      };
-    }
-
-    if (order.payment_method !== "mercadopago") {
-      throw {
-        status: 400,
-        message: "La orden no fue creada con método Mercado Pago",
-      };
-    }
-
-    const cartItems =
-      await ordersRepository.getCartItemsForPreferenceByUserId(userId);
-
-    if (cartItems.length === 0) {
-      throw { status: 400, message: "No hay productos en carrito" };
-    }
-
-    const preference = new Preference(mercadopagoClient);
-    const externalReference = `order:${order.id}:user:${userId}`;
-    const successBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=success&order_id=${order.id}`;
-    const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=pending&order_id=${order.id}`;
-    const failureBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=failure&order_id=${order.id}`;
-    if (!FRONTEND_BASE_URL) {
-      throw {
-        status: 500,
-        message: "FRONTEND_BASE_URL no está configurado",
-      };
-    }
-
-    const preferenceBody = {
-      items: [
-        ...cartItems.map((item) => ({
-          title: item.name,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.price),
-          currency_id: "ARS",
-        })),
-        {
-          title:
-            order.shipping_method === "home_delivery"
-              ? "Envío a domicilio"
-              : "Retiro en local",
-          quantity: 1,
-          unit_price: Number(order.shipping_cost || 0),
-          currency_id: "ARS",
-        },
-      ],
-      external_reference: externalReference,
-      back_urls: {
-        success: successBackUrl,
-        pending: pendingBackUrl,
-        failure: failureBackUrl,
-      },
-      notification_url: `${BACKEND_BASE_URL}/api/payments/mercadopago/webhook`,
-    };
-
-    // if (canUseMercadoPagoAutoReturn(successBackUrl)) {
-    //   preferenceBody.auto_return = "approved";
-    // }
-
-    const preferenceResult = await preference.create({
-      body: preferenceBody,
-    });
-
-    await ordersRepository.updateOrderPreferenceId({
-      preferenceId: preferenceResult.id,
-      orderId: order.id,
-    });
-
-    return {
-      init_point: preferenceResult.init_point,
-      sandbox_init_point: preferenceResult.sandbox_init_point,
-      preference_id: preferenceResult.id,
-    };
-  },
-
-  confirmCashOrder: async (orderId, userId, shippingReference) => {
-    if (!userId || !shippingReference) {
-      throw {
-        status: 400,
-        message: "shippingReference es obligatorio",
-      };
-    }
-
-    const client = await ordersRepository.connect();
-
-    try {
-      await client.query("BEGIN");
-
-      const orderResult = await client.query(
-        `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
-        [orderId],
-      );
-
-      if (orderResult.rows.length === 0) {
-        throw { status: 404, message: "Orden no encontrada" };
+        return {
+          message: "Resumen validado. Confirmá para crear la orden.",
+          breakdown,
+          cart,
+          adjustments,
+          checkoutData: {
+            shippingAddress,
+            shippingMethod: normalizedShippingMethod,
+            paymentMethod: normalizedPaymentMethod,
+          },
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
       }
+    },
 
-      const order = orderResult.rows[0];
-      assertOrderOwnership(order, userId);
-      assertPaymentMethod(
-        order,
-        "cash",
-        "La orden no fue creada con método efectivo",
-      );
-
-      if (order.shipping_method === "home_delivery") {
+    createCheckoutProPreference: async (orderId, userId) => {
+      if (!mercadopagoClient) {
         throw {
-          status: 400,
+          status: 500,
           message:
-            "No se puede confirmar en efectivo una orden con envío a domicilio. Debe ser retiro en local.",
+            "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
         };
       }
 
-      assertConfirmableOrder(order);
+      if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+        throw {
+          status: 500,
+          message:
+            "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
+        };
+      }
+
+      if (!BACKEND_BASE_URL) {
+        throw {
+          status: 500,
+          message: "BACKEND_BASE_URL no está configurado",
+        };
+      }
+
+      const order = await ordersRepository.getOrderById(orderId);
+
+      if (!order) {
+        throw { status: 404, message: "Orden no encontrada" };
+      }
+      if (String(order.user_id) !== String(userId)) {
+        throw { status: 403, message: "No autorizado para esta orden" };
+      }
+
+      if (order.status !== ORDER_STATUS.PENDING) {
+        throw {
+          status: 409,
+          message: `La orden no puede pagarse en estado ${order.status}`,
+        };
+      }
+
+      if (order.payment_method !== "mercadopago") {
+        throw {
+          status: 400,
+          message: "La orden no fue creada con método Mercado Pago",
+        };
+      }
+
+      const orderItems = await ordersRepository.getOrderItemsByOrderId(order.id);
+
+      if (orderItems.length === 0) {
+        throw { status: 400, message: "No hay productos en la orden" };
+      }
+
+      const preference = new Preference(mercadopagoClient);
+      const externalReference = `order:${order.id}:user:${userId}`;
+      const successBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=success&order_id=${order.id}`;
+      const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=pending&order_id=${order.id}`;
+      const failureBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=failure&order_id=${order.id}`;
+      if (!FRONTEND_BASE_URL) {
+        throw {
+          status: 500,
+          message: "FRONTEND_BASE_URL no está configurado",
+        };
+      }
+
+      const preferenceBody = {
+        items: [
+          ...orderItems.map((item) => ({
+            title: item.name,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.price),
+            currency_id: "ARS",
+          })),
+          {
+            title:
+              order.shipping_method === "home_delivery"
+                ? "Envío a domicilio"
+                : "Retiro en local",
+            quantity: 1,
+            unit_price: Number(order.shipping_cost || 0),
+            currency_id: "ARS",
+          },
+        ],
+        external_reference: externalReference,
+        back_urls: {
+          success: successBackUrl,
+          pending: pendingBackUrl,
+          failure: failureBackUrl,
+        },
+        notification_url: `${BACKEND_BASE_URL}/api/payments/mercadopago/webhook`,
+      };
+
+      const preferenceResult = await preference.create({
+        body: preferenceBody,
+      });
+
+      await ordersRepository.updateOrderPreferenceId({
+        preferenceId: preferenceResult.id,
+        orderId: order.id,
+      });
+
+      return {
+        orderId: order.id,
+        init_point: preferenceResult.init_point,
+        sandbox_init_point: preferenceResult.sandbox_init_point,
+        preference_id: preferenceResult.id,
+      };
+    },
+
+    startMercadoPagoCheckout: async (
+      userId,
+      { shippingAddress, shippingMethod, paymentMethod },
+    ) => {
+      if (!userId) {
+        throw { status: 400, message: "userId es obligatorio" };
+      }
+
+      const { normalizedShippingMethod, normalizedPaymentMethod } =
+        validateCheckoutInput({ shippingAddress, shippingMethod, paymentMethod });
+
+      if (normalizedPaymentMethod !== "mercadopago") {
+        throw {
+          status: 400,
+          message: "Método de pago inválido para iniciar Mercado Pago",
+        };
+      }
+
+      const client = await ordersRepository.connect();
+
+      try {
+        await client.query("BEGIN");
+        const { cart, adjustments } = await syncAndGetCart(client, userId);
+        assertCartStock(cart);
+
+        const breakdown = buildBreakdown({
+          cart,
+          shippingMethod: normalizedShippingMethod,
+        });
+
+        const order = await createOrderAndItems({
+          client,
+          userId,
+          cart,
+          shippingAddress,
+          shippingMethod: normalizedShippingMethod,
+          paymentMethod: normalizedPaymentMethod,
+          breakdown,
+        });
+
+        await client.query("COMMIT");
+
+        const preference = await this.createCheckoutProPreference(order.id, userId);
+
+        return {
+          message: "Orden creada y lista para pagar con Mercado Pago",
+          order,
+          breakdown,
+          adjustments,
+          preference,
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+
+    confirmCashOrder: async (orderId, userId, shippingReference) => {
+      if (!orderId) {
+        throw { status: 400, message: "orderId es obligatorio" };
+      }
+
+      if (!userId || !shippingReference) {
+        throw {
+          status: 400,
+          message: "shippingReference es obligatorio",
+        };
+      }
+
+      const client = await ordersRepository.connect();
+
+      try {
+        await client.query("BEGIN");
+
+        const orderResult = await client.query(
+          `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+          [orderId],
+        );
+
+        if (orderResult.rows.length === 0) {
+          throw { status: 404, message: "Orden no encontrada" };
+        }
+
+        const order = orderResult.rows[0];
+        assertOrderOwnership(order, userId);
+        assertPaymentMethod(
+          order,
+          "cash",
+          "La orden no fue creada con método efectivo",
+        );
+
+        if (order.shipping_method === "home_delivery") {
+          throw {
+            status: 400,
+            message:
+              "No se puede confirmar en efectivo una orden con envío a domicilio. Debe ser retiro en local.",
+          };
+        }
+
+        assertConfirmableOrder(order);
+
+        if (String(shippingReference).trim().length < 3) {
+          throw {
+            status: 400,
+            message: "Envío rechazado: referencia inválida",
+          };
+        }
+
+        await finalizeOrderWithStockValidation(client, {
+          order,
+          userId,
+          paymentReference: `cash:${shippingReference}`,
+        });
+
+        await client.query("COMMIT");
+
+        return {
+          message: "Orden confirmada en efectivo",
+          orderId: order.id,
+          status: ORDER_STATUS.PAID,
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+
+    confirmCashOrderFromCheckout: async (
+      userId,
+      { shippingAddress, shippingMethod, paymentMethod, shippingReference },
+    ) => {
+      if (!userId || !shippingReference) {
+        throw {
+          status: 400,
+          message: "shippingReference es obligatorio",
+        };
+      }
+
+      const { normalizedShippingMethod, normalizedPaymentMethod } =
+        validateCheckoutInput({ shippingAddress, shippingMethod, paymentMethod });
+
+      if (normalizedPaymentMethod !== "cash") {
+        throw { status: 400, message: "Método de pago inválido para efectivo" };
+      }
 
       if (String(shippingReference).trim().length < 3) {
         throw {
@@ -421,239 +617,262 @@ const createOrdersService = ({
         };
       }
 
-      await finalizeOrderWithStockValidation(client, {
-        order,
-        userId,
-        paymentReference: `cash:${shippingReference}`,
-      });
+      const client = await ordersRepository.connect();
 
-      await client.query("COMMIT");
+      try {
+        await client.query("BEGIN");
+        const { cart, adjustments } = await syncAndGetCart(client, userId);
+        assertCartStock(cart);
 
-      return {
-        message: "Orden confirmada en efectivo",
-        orderId: order.id,
-        status: ORDER_STATUS.PAID,
-      };
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
+        const breakdown = buildBreakdown({
+          cart,
+          shippingMethod: normalizedShippingMethod,
+        });
 
-  confirmMercadoPagoOrder: async (orderId, userId, paymentId) => {
-    if (!mercadopagoClient) {
-      throw {
-        status: 500,
-        message:
-          "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
-      };
-    }
+        const order = await createOrderAndItems({
+          client,
+          userId,
+          cart,
+          shippingAddress,
+          shippingMethod: normalizedShippingMethod,
+          paymentMethod: normalizedPaymentMethod,
+          breakdown,
+        });
 
-    if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
-      throw {
-        status: 500,
-        message:
-          "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
-      };
-    }
+        await finalizeOrderWithStockValidation(client, {
+          order,
+          userId,
+          paymentReference: `cash:${shippingReference}`,
+        });
 
-    if (!userId) {
-      throw {
-        status: 400,
-        message: "userId es obligatorio",
-      };
-    }
+        await client.query("COMMIT");
 
-    if (!paymentId) {
-      throw {
-        status: 400,
-        message: "paymentId es obligatorio",
-      };
-    }
+        return {
+          message: "Orden confirmada en efectivo",
+          orderId: order.id,
+          status: ORDER_STATUS.PAID,
+          adjustments,
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
 
-    const client = await ordersRepository.connect();
+    confirmMercadoPagoOrder: async (orderId, userId, paymentId) => {
+      if (!mercadopagoClient) {
+        throw {
+          status: 500,
+          message:
+            "Mercado Pago no configurado. Define MP_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN) en el backend.",
+        };
+      }
 
-    try {
-      await client.query("BEGIN");
-      const orderResult = await client.query(
-        "SELECT * FROM orders WHERE id = $1 FOR UPDATE",
-        [orderId],
-      );
+      if (!hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)) {
+        throw {
+          status: 500,
+          message:
+            "El access token de Mercado Pago tiene formato inválido. Debe comenzar con TEST- o APP_USR-.",
+        };
+      }
 
-      const order = orderResult.rows[0];
+      if (!userId) {
+        throw {
+          status: 400,
+          message: "userId es obligatorio",
+        };
+      }
+
+      if (!paymentId) {
+        throw {
+          status: 400,
+          message: "paymentId es obligatorio",
+        };
+      }
+
+      const client = await ordersRepository.connect();
+
+      try {
+        await client.query("BEGIN");
+        const orderResult = await client.query(
+          "SELECT * FROM orders WHERE id = $1 FOR UPDATE",
+          [orderId],
+        );
+
+        const order = orderResult.rows[0];
+        assertOrderOwnership(order, userId);
+        assertPaymentMethod(
+          order,
+          "mercadopago",
+          "La orden no fue creada con método Mercado Pago",
+        );
+        assertConfirmableOrder(order);
+
+        const confirmation = await confirmMercadoPagoPayment({
+          client,
+          paymentId,
+          expectedOrderId: orderId,
+          expectedUserId: userId,
+        });
+
+        await client.query("COMMIT");
+
+        return {
+          message: confirmation.alreadyProcessed
+            ? "La orden ya estaba confirmada previamente"
+            : confirmation.paid
+              ? "Orden confirmada y pagada con Mercado Pago"
+              : `Pago procesado con estado ${confirmation.paymentStatus}`,
+          orderId: confirmation.orderId,
+          status: confirmation.paid
+            ? ORDER_STATUS.PAID
+            : confirmation.paymentStatus === "pending" ||
+                confirmation.paymentStatus === "in_process"
+              ? ORDER_STATUS.PENDING
+              : ORDER_STATUS.REJECTED,
+          paymentId,
+          paymentStatus: confirmation.paymentStatus,
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+
+    updateOrderStatus: async ({ orderId, status, userId }) => {
+      const normalizedStatus = normalizeOrderStatus(status);
+
+      if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
+        throw {
+          status: 400,
+          message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
+        };
+      }
+
+      const order = await ordersRepository.getOrderById(orderId);
+
+      if (!order) {
+        throw { status: 404, message: "Orden no encontrada" };
+      }
+
       assertOrderOwnership(order, userId);
-      assertPaymentMethod(
-        order,
-        "mercadopago",
-        "La orden no fue creada con método Mercado Pago",
-      );
-      assertConfirmableOrder(order);
-
-      const confirmation = await confirmMercadoPagoPayment({
-        client,
-        paymentId,
-        expectedOrderId: orderId,
-        expectedUserId: userId,
+      assertValidOrderTransition({
+        currentStatus: order.status,
+        nextStatus: normalizedStatus,
       });
 
-      await client.query("COMMIT");
+      const updatedOrder = await ordersRepository.updateOrderStatusById({
+        status: normalizedStatus,
+        orderId,
+      });
 
-      return {
-        message: confirmation.alreadyProcessed
-          ? "La orden ya estaba confirmada previamente"
-          : confirmation.paid
-            ? "Orden confirmada y pagada con Mercado Pago"
-            : `Pago procesado con estado ${confirmation.paymentStatus}`,
-        orderId: confirmation.orderId,
-        status: confirmation.paid
-          ? ORDER_STATUS.PAID
-          : confirmation.paymentStatus === "pending" ||
-              confirmation.paymentStatus === "in_process"
-            ? ORDER_STATUS.PENDING
-            : ORDER_STATUS.REJECTED,
-        paymentId,
-        paymentStatus: confirmation.paymentStatus,
-      };
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
+      return updatedOrder;
+    },
 
-  updateOrderStatus: async ({ orderId, status, userId }) => {
-    const normalizedStatus = normalizeOrderStatus(status);
+    updateOrderStatusAsAdmin: async ({ orderId, status }) => {
+      const normalizedStatus = normalizeOrderStatus(status);
 
-    if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
-      throw {
-        status: 400,
-        message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
-      };
-    }
-
-    const order = await ordersRepository.getOrderById(orderId);
-
-    if (!order) {
-      throw { status: 404, message: "Orden no encontrada" };
-    }
-
-    assertOrderOwnership(order, userId);
-    assertValidOrderTransition({
-      currentStatus: order.status,
-      nextStatus: normalizedStatus,
-    });
-
-    const updatedOrder = await ordersRepository.updateOrderStatusById({
-      status: normalizedStatus,
-      orderId,
-    });
-
-    return updatedOrder;
-  },
-
-  updateOrderStatusAsAdmin: async ({ orderId, status }) => {
-    const normalizedStatus = normalizeOrderStatus(status);
-
-    if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
-      throw {
-        status: 400,
-        message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
-      };
-    }
-
-    const order = await ordersRepository.getOrderById(orderId);
-    if (!order) {
-      throw { status: 404, message: "Orden no encontrada" };
-    }
-
-    if (order.status === normalizedStatus) {
-      throw {
-        status: 409,
-        message: `La orden ya se encuentra en estado ${normalizedStatus}`,
-      };
-    }
-
-    const updatedOrder = await ordersRepository.updateOrderStatusById({
-      orderId,
-      status: normalizedStatus,
-    });
-
-    return updatedOrder;
-  },
-
-  deleteOrderAsAdmin: async (orderId) => {
-    const order = await ordersRepository.getOrderById(orderId);
-    if (!order) {
-      throw { status: 404, message: "Orden no encontrada" };
-    }
-
-    const client = await ordersRepository.connect();
-
-    try {
-      await client.query("BEGIN");
-      await ordersRepository.deleteOrderById({ orderId, client });
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-
-    return { message: `Pedido #${orderId} eliminado correctamente` };
-  },
-
-
-  getAdminOrders: async () => {
-    const rows = await ordersRepository.getAdminOrdersWithUsersAndItems();
-    const groupedOrders = new Map();
-
-    for (const row of rows) {
-      if (!groupedOrders.has(row.order_id)) {
-        const shipping = mapShippingAddress(row.shipping_address);
-
-        groupedOrders.set(row.order_id, {
-          id: row.order_id,
-          date: row.created_at,
-          status: row.status,
-          total: Number(row.total),
-          shippingCost: Number(row.shipping_cost || 0),
-          paymentMethod: row.payment_method,
-          shippingMethod: row.shipping_method,
-          buyer: {
-            id: row.user_id,
-            name: row.user_name,
-            email: row.user_email,
-          },
-          shippingAddress: shipping,
-          items: [],
-        });
+      if (!VALID_ORDER_STATUSES.includes(normalizedStatus)) {
+        throw {
+          status: 400,
+          message: `Estado inválido. Usar: ${VALID_ORDER_STATUSES.join(", ")}`,
+        };
       }
 
-      if (row.product_id) {
-        groupedOrders.get(row.order_id).items.push({
-          productId: row.product_id,
-          productName: row.product_name,
-          quantity: Number(row.quantity),
-          unitPrice: Number(row.unit_price),
-          subtotal: Number(row.quantity) * Number(row.unit_price),
-        });
+      const order = await ordersRepository.getOrderById(orderId);
+      if (!order) {
+        throw { status: 404, message: "Orden no encontrada" };
       }
-    }
 
-    return Array.from(groupedOrders.values());
-  },
-  getOrdersByUser: async (userId) => {
-    const rows = await ordersRepository.getOrdersByUserId(userId);
+      if (order.status === normalizedStatus) {
+        throw {
+          status: 409,
+          message: `La orden ya se encuentra en estado ${normalizedStatus}`,
+        };
+      }
 
-    return rows.map((row) => ({
-      ...row,
-      shipping_address: parseJsonIfNeeded(row.shipping_address),
-    }));
-  },
-});
+      const updatedOrder = await ordersRepository.updateOrderStatusById({
+        orderId,
+        status: normalizedStatus,
+      });
+
+      return updatedOrder;
+    },
+
+    deleteOrderAsAdmin: async (orderId) => {
+      const order = await ordersRepository.getOrderById(orderId);
+      if (!order) {
+        throw { status: 404, message: "Orden no encontrada" };
+      }
+
+      const client = await ordersRepository.connect();
+
+      try {
+        await client.query("BEGIN");
+        await ordersRepository.deleteOrderById({ orderId, client });
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      return { message: `Pedido #${orderId} eliminado correctamente` };
+    },
+
+    getAdminOrders: async () => {
+      const rows = await ordersRepository.getAdminOrdersWithUsersAndItems();
+      const groupedOrders = new Map();
+
+      for (const row of rows) {
+        if (!groupedOrders.has(row.order_id)) {
+          const shipping = mapShippingAddress(row.shipping_address);
+
+          groupedOrders.set(row.order_id, {
+            id: row.order_id,
+            date: row.created_at,
+            status: row.status,
+            total: Number(row.total),
+            shippingCost: Number(row.shipping_cost || 0),
+            paymentMethod: row.payment_method,
+            shippingMethod: row.shipping_method,
+            buyer: {
+              id: row.user_id,
+              name: row.user_name,
+              email: row.user_email,
+            },
+            shippingAddress: shipping,
+            items: [],
+          });
+        }
+
+        if (row.product_id) {
+          groupedOrders.get(row.order_id).items.push({
+            productId: row.product_id,
+            productName: row.product_name,
+            quantity: Number(row.quantity),
+            unitPrice: Number(row.unit_price),
+            subtotal: Number(row.quantity) * Number(row.unit_price),
+          });
+        }
+      }
+
+      return Array.from(groupedOrders.values());
+    },
+    getOrdersByUser: async (userId) => {
+      const rows = await ordersRepository.getOrdersByUserId(userId);
+
+      return rows.map((row) => ({
+        ...row,
+        shipping_address: parseJsonIfNeeded(row.shipping_address),
+      }));
+    },
+  };
+};
 
 module.exports = createOrdersService;

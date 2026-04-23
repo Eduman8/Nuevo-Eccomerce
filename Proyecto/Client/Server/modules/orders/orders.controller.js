@@ -27,6 +27,48 @@ const createOrdersController = (ordersService) => ({
     }
   },
 
+
+
+  startMercadoPagoCheckout: async (req, res, next) => {
+    const userId = req.user?.id;
+
+    try {
+      const result = await ordersService.startMercadoPagoCheckout(userId, req.body);
+      return res.status(201).json(result);
+    } catch (err) {
+      return next(
+        createHttpError({
+          status: err.status || 500,
+          payload: {
+            error: err.message || "Error al iniciar checkout con Mercado Pago",
+            details: err.details,
+          },
+          logError: err,
+        }),
+      );
+    }
+  },
+
+  confirmCashOrderFromCheckout: async (req, res, next) => {
+    const userId = req.user?.id;
+
+    try {
+      const result = await ordersService.confirmCashOrderFromCheckout(userId, req.body);
+      return res.status(201).json(result);
+    } catch (err) {
+      return next(
+        createHttpError({
+          status: err.status || 500,
+          payload: {
+            error: err.message || "Error al confirmar compra en efectivo",
+            details: err.details,
+          },
+          logError: err,
+        }),
+      );
+    }
+  },
+
   createCheckoutProPreference: async (req, res, next) => {
     const { orderId } = req.params;
     const userId = req.user?.id;
