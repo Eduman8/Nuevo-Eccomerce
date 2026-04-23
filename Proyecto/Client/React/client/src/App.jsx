@@ -6,6 +6,7 @@ import ProtectedRoute from "../ProtectedRoute";
 import Navbar from "../Navbar/Navbar";
 import { CartProvider } from "../Context/CartContext.jsx";
 import AdminPanel from "../Admin/AdminPanel";
+import AdminOrdersPage from "../Admin/AdminOrdersPage";
 import CheckoutPage from "../Checkout/CheckoutPage";
 import { NotificationProvider } from "../Notifications/NotificationProvider";
 import { clearStoredAuth } from "../utils/authSession";
@@ -54,6 +55,15 @@ function App() {
               }
             />
 
+
+            <Route
+              path="/admin/orders"
+              element={
+                <AdminRoute user={user}>
+                  <AdminOrdersPage onSessionExpired={handleSessionExpired} />
+                </AdminRoute>
+              }
+            />
             <Route
               path="/orders"
               element={
