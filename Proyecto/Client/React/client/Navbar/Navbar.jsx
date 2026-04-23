@@ -27,10 +27,10 @@ function Navbar({ user, setUser }) {
 
   const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const hasCartStockConflict = cart.some(
-    (item) => Number(item.quantity) > Number(item.stock || 0),
+    (item) =>
+      Number(item.stock || 0) <= 0 ||
+      Number(item.quantity) > Number(item.stock || 0),
   );
-  const hasBlockingStockError =
-    hasCartStockConflict || /stock insuficiente|agotado/i.test(cartError || "");
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -192,7 +192,7 @@ function Navbar({ user, setUser }) {
               <strong>Total: ${total}</strong>
               <button
                 className="checkout"
-                disabled={isMutatingCart || hasBlockingStockError}
+                disabled={isMutatingCart || hasCartStockConflict}
                 onClick={() => {
                   checkout();
                   setShowCart(false);
@@ -201,7 +201,7 @@ function Navbar({ user, setUser }) {
               >
                 Ir a finalizar compra
               </button>
-              {hasBlockingStockError && (
+              {hasCartStockConflict && (
                 <p className="cart-alert cart-alert-warning">
                   Revisá el carrito para continuar: hay productos sin stock suficiente.
                 </p>

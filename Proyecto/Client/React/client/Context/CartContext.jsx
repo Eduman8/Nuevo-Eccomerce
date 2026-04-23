@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CartContext } from "./cartContext";
 import { useNotification } from "../Notifications/NotificationProvider";
 import {
@@ -13,6 +13,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
   const [cartLoading, setCartLoading] = useState(false);
   const [cartError, setCartError] = useState("");
   const [isMutatingCart, setIsMutatingCart] = useState(false);
+  const stockMessageTimeoutRef = useRef(null);
   const { info, success, warning, error: notifyError } = useNotification();
 
   const API_BASE_URL =
@@ -83,6 +84,29 @@ export function CartProvider({ children, user, onSessionExpired }) {
     return payload;
   };
 
+  const clearStockMessageTimeout = () => {
+    if (stockMessageTimeoutRef.current) {
+      clearTimeout(stockMessageTimeoutRef.current);
+      stockMessageTimeoutRef.current = null;
+    }
+  };
+
+  const showTransientStockMessage = (message) => {
+    setCartError(message);
+    clearStockMessageTimeout();
+    stockMessageTimeoutRef.current = setTimeout(() => {
+      setCartError((currentMessage) => (currentMessage === message ? "" : currentMessage));
+      stockMessageTimeoutRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(
+    () => () => {
+      clearStockMessageTimeout();
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!user) {
       setCart([]);
@@ -133,6 +157,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       .then((items) => {
         notifyStockAdjustments(cart, items);
         setCart(items);
+        clearStockMessageTimeout();
         setCartError("");
         return items;
       })
@@ -196,7 +221,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
               ? `Stock insuficiente. Disponible: ${availableStock}`
               : fallbackMessage;
 
-            setCartError(stockMessage);
+            showTransientStockMessage(stockMessage);
 
             if (nextCart.length === 0) {
               warning(`${stockMessage}. El producto fue removido del carrito.`);
@@ -226,6 +251,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
     )
       .then(refreshCart)
       .then(() => {
+        clearStockMessageTimeout();
         setCartError("");
         success("Producto eliminado del carrito.");
       })
@@ -254,6 +280,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
     )
       .then(refreshCart)
       .then(() => {
+        clearStockMessageTimeout();
         setCartError("");
         info("Cantidad actualizada.");
       })
