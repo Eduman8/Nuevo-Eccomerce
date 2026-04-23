@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import ProductCard from "../ProductCard/productCard";
+import "./CategoryPage.css";
 
 const API_BASE_URL = "http://localhost:3000/api";
 
@@ -23,15 +24,17 @@ function CategoryPage({ addToCart }) {
   }, [category]);
 
   return (
-    <div className="container">
-      <h2>{category}</h2>
+    <section className="category-products">
+      <header className="category-products__header">
+        <h2>{category}</h2>
+      </header>
 
-      <div className="grid">
+      <div className="category-products__grid">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 

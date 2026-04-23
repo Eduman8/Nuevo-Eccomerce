@@ -4,7 +4,12 @@ import "./Home.css";
 function Home() {
   return (
     <div className="container">
-      <h1>Nuestros Productos</h1>
+      <header className="products-header">
+        <div className="products-header__content">
+          <h1>Nuestros Productos</h1>
+          <p>Explorá nuestra colección disponible</p>
+        </div>
+      </header>
 
       <div className="grid">
         <CategoryCard
