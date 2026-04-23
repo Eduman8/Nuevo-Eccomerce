@@ -153,7 +153,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       .catch((err) => {
         console.error(err);
         if (err.message !== SESSION_EXPIRED_MESSAGE) {
-          const message = err.message || "No se pudo agregar el producto al carrito.";
+          const message =
+            err.message || "No se pudo agregar el producto al carrito.";
           setCartError(message);
           notifyError(message);
         }
@@ -179,7 +180,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       .catch((err) => {
         console.error(err);
         if (err.message !== SESSION_EXPIRED_MESSAGE) {
-          const message = err.message || "No se pudo eliminar el producto del carrito.";
+          const message =
+            err.message || "No se pudo eliminar el producto del carrito.";
           setCartError(message);
           notifyError(message);
         }
@@ -205,7 +207,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       .catch((err) => {
         console.error(err);
         if (err.message !== SESSION_EXPIRED_MESSAGE) {
-          const message = err.message || "No se pudo actualizar la cantidad del producto.";
+          const message =
+            err.message || "No se pudo actualizar la cantidad del producto.";
           setCartError(message);
           notifyError(message);
         }
@@ -309,7 +312,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
   };
 
   const checkout = () => {
-    info("Ahora el checkout se realiza desde la pantalla /checkout.");
+    info("Procediendo al checkout...");
   };
 
   return (
