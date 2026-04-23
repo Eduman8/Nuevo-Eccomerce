@@ -101,6 +101,25 @@
   font-size: 0.95rem;
 }
 
+.cart-alert {
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.cart-alert-error {
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+}
+
+.cart-alert-warning {
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+
 .cart-error {
   color: var(--danger);
 }
