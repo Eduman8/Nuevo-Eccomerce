@@ -168,7 +168,7 @@ function CheckoutPage({ user }) {
       });
 
       setOrderSummary(pendingOrder);
-      setSuccess("Orden creada correctamente. Ahora podés continuar con el pago.");
+      setSuccess("Resumen validado. Confirmá la compra para continuar.");
       setNotice({ type: "", message: "" });
     } catch (err) {
       setError(err.message || "Ocurrió un error inesperado al crear la orden.");
@@ -182,14 +182,18 @@ function CheckoutPage({ user }) {
       setError("");
       setSuccess("");
 
-      if (!orderSummary?.order?.id) {
-        throw new Error("Primero debes crear la orden pendiente.");
+      if (!orderSummary) {
+        throw new Error("Primero debés validar el resumen de compra.");
       }
 
       setLoadingAction("start_mp");
       setNotice({ type: "info", message: "Preparando el pago. Serás redirigido a Mercado Pago..." });
 
-      const preference = await createMercadoPagoPreference(orderSummary.order.id);
+      const preference = await createMercadoPagoPreference({
+        shippingAddress: address,
+        shippingMethod,
+        paymentMethod,
+      });
 
       if (!preference?.init_point) {
         throw new Error("No se recibió el link de pago de Mercado Pago.");
@@ -209,15 +213,17 @@ function CheckoutPage({ user }) {
       setSuccess("");
       setNotice({ type: "", message: "" });
 
-      if (!orderSummary?.order?.id) {
-        throw new Error("Primero debes crear la orden pendiente.");
+      if (!orderSummary) {
+        throw new Error("Primero debés validar el resumen de compra.");
       }
 
       setLoadingAction("confirm_cash");
-      const shippingReference = `checkout:${orderSummary.order.id}`;
+      const shippingReference = `checkout:${Date.now()}`;
 
       const result = await confirmCashOrder({
-        orderId: orderSummary.order.id,
+        shippingAddress: address,
+        shippingMethod,
+        paymentMethod,
         shippingReference,
       });
 
@@ -262,7 +268,7 @@ function CheckoutPage({ user }) {
 
       {!orderSummary ? (
         <button onClick={handleCreateOrder} disabled={isProcessing}>
-          {loadingAction === "create_order" ? "Creando orden..." : "Crear orden pendiente"}
+          {loadingAction === "create_order" ? "Validando stock..." : "Validar resumen"}
         </button>
       ) : paymentMethod === "mercadopago" ? (
         <button onClick={handleMercadoPagoCheckout} disabled={isProcessing}>
@@ -277,6 +283,17 @@ function CheckoutPage({ user }) {
       )}
 
       {notice.message && <p className={`checkout-notice checkout-notice-${notice.type}`}>{notice.message}</p>}
+      {Array.isArray(orderSummary?.adjustments) && orderSummary.adjustments.length > 0 && (
+        <div className="checkout-notice checkout-notice-warning">
+          {orderSummary.adjustments.map((adjustment) => (
+            <p key={`${adjustment.productId}-${adjustment.type}`}>
+              {adjustment.type === "removed"
+                ? `${adjustment.name} fue removido por falta de stock.`
+                : `${adjustment.name} se ajustó al stock disponible (${adjustment.available}).`}
+            </p>
+          ))}
+        </div>
+      )}
       {error && <p className="checkout-error">{error}</p>}
       {success && <p className="checkout-success">{success}</p>}
     </div>

@@ -34,6 +34,16 @@ const createOrdersRouter = ({
 
   router.post("/", asyncHandler(ordersController.createOrder));
 
+  router.post(
+    "/checkout/mercadopago",
+    asyncHandler(ordersController.startMercadoPagoCheckout),
+  );
+
+  router.post(
+    "/checkout/cash",
+    asyncHandler(ordersController.confirmCashOrderFromCheckout),
+  );
+
   router.get("/my-orders", asyncHandler(ordersController.getOrdersByUser));
 
   router.get(
