@@ -6,6 +6,11 @@ import {
   isUnauthorizedResponse,
   SESSION_EXPIRED_MESSAGE,
 } from "../utils/authSession";
+import {
+  getOrderStatusLabel,
+  getPaymentMethodLabel,
+  getShippingMethodLabel,
+} from "../utils/orderLabels";
 import "./AdminOrdersPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -75,11 +80,11 @@ function AdminOrdersPage({ onSessionExpired }) {
             <article key={order.id} className="admin-order-card">
               <h2>Pedido #{order.id}</h2>
               <p>Fecha: {new Date(order.date).toLocaleString()}</p>
-              <p>Estado: {order.status}</p>
+              <p>Estado: {getOrderStatusLabel(order.status)}</p>
               <p>Total: ${Number(order.total || 0).toFixed(2)}</p>
               <p>Costo de envío: ${Number(order.shippingCost || 0).toFixed(2)}</p>
-              <p>Método de pago: {order.paymentMethod}</p>
-              <p>Método de envío: {order.shippingMethod}</p>
+              <p>Método de pago: {getPaymentMethodLabel(order.paymentMethod)}</p>
+              <p>Método de envío: {getShippingMethodLabel(order.shippingMethod)}</p>
 
               <div className="admin-order-block">
                 <h3>Comprador</h3>

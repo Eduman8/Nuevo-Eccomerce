@@ -83,9 +83,9 @@ function Navbar({ user, setUser }) {
           <h2 className="logo">HARTA</h2>
 
           <div className="links">
-            <Link to="/">Home</Link>
-            {isAdminUser(user) && <Link to="/admin">Admin</Link>}
-            {isAdminUser(user) && <Link to="/admin/orders">Pedidos Admin</Link>}
+            <Link to="/">Inicio</Link>
+            {isAdminUser(user) && <Link to="/admin">Administración</Link>}
+            {isAdminUser(user) && <Link to="/admin/orders">Pedidos (Admin)</Link>}
             {user && <Link to="/orders">Pedidos</Link>}
           </div>
         </div>
@@ -192,7 +192,7 @@ function Navbar({ user, setUser }) {
                   navigate("/checkout");
                 }}
               >
-                Ir al checkout
+                Ir a finalizar compra
               </button>
             </div>
           </>

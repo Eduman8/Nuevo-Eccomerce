@@ -5,6 +5,7 @@ import AddressStep from "./AddressStep";
 import ShippingStep from "./ShippingStep";
 import PaymentStep from "./PaymentStep";
 import ConfirmationStep from "./ConfirmationStep";
+import { getOrderStatusLabel } from "../utils/orderLabels";
 import "./Checkout.css";
 
 const initialAddress = {
@@ -29,7 +30,6 @@ function CheckoutPage({ user }) {
   const [address, setAddress] = useState(initialAddress);
   const [shippingMethod, setShippingMethod] = useState("home_delivery");
   const [paymentMethod, setPaymentMethod] = useState("mercadopago");
-  const [shippingReference, setShippingReference] = useState("");
   const [orderSummary, setOrderSummary] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -128,7 +128,7 @@ function CheckoutPage({ user }) {
   if (!user) {
     return (
       <div className="checkout-page">
-        <h1>Checkout</h1>
+        <h1>Finalizar compra</h1>
         <p>Debes iniciar sesión para continuar.</p>
       </div>
     );
@@ -137,7 +137,7 @@ function CheckoutPage({ user }) {
   if (cart.length === 0 && !orderSummary) {
     return (
       <div className="checkout-page">
-        <h1>Checkout</h1>
+        <h1>Finalizar compra</h1>
         <p>No hay productos en el carrito.</p>
       </div>
     );
@@ -213,11 +213,8 @@ function CheckoutPage({ user }) {
         throw new Error("Primero debes crear la orden pendiente.");
       }
 
-      if (shippingReference.trim().length < 3) {
-        throw new Error("La referencia de envío debe tener al menos 3 caracteres.");
-      }
-
       setLoadingAction("confirm_cash");
+      const shippingReference = `checkout:${orderSummary.order.id}`;
 
       const result = await confirmCashOrder({
         orderId: orderSummary.order.id,
@@ -235,7 +232,7 @@ function CheckoutPage({ user }) {
         setNotice({ type: "", message: "" });
       }
 
-      setSuccess(`Compra confirmada. Estado final: ${result.status}.`);
+      setSuccess(`Compra confirmada. Estado final: ${getOrderStatusLabel(result.status)}.`);
       setTimeout(() => navigate("/orders"), 1000);
     } catch (err) {
       setError(err.message || "Ocurrió un error inesperado al confirmar la compra.");
@@ -246,7 +243,7 @@ function CheckoutPage({ user }) {
 
   return (
     <div className="checkout-page">
-      <h1>Checkout</h1>
+      <h1>Finalizar compra</h1>
       <p>Subtotal carrito: ${total.toFixed(2)}</p>
       <p>Envío estimado: ${shippingCost.toFixed(2)}</p>
       {paymentMethod === "cash" && <p className="checkout-notice checkout-notice-info">Pago a acordar con el vendedor</p>}
@@ -274,8 +271,6 @@ function CheckoutPage({ user }) {
       ) : (
         <ConfirmationStep
           orderSummary={orderSummary}
-          shippingReference={shippingReference}
-          onShippingReferenceChange={setShippingReference}
           onConfirmCash={handleConfirmCashOrder}
           loading={isProcessing}
         />

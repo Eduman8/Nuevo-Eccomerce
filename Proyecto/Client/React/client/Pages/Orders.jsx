@@ -6,6 +6,11 @@ import {
   isUnauthorizedResponse,
   SESSION_EXPIRED_MESSAGE,
 } from "../utils/authSession";
+import {
+  getOrderStatusLabel,
+  getPaymentMethodLabel,
+  getShippingMethodLabel,
+} from "../utils/orderLabels";
 import "./Orders.css";
 
 function Orders({ user, onSessionExpired }) {
@@ -104,10 +109,10 @@ function Orders({ user, onSessionExpired }) {
                 <strong>Pedido #{order.id}</strong>
               </p>
               <p>Total: ${order.total}</p>
-              <p>Estado: {order.status}</p>
-              <p>Método de envío: {order.shippingMethod}</p>
+              <p>Estado: {getOrderStatusLabel(order.status)}</p>
+              <p>Método de envío: {getShippingMethodLabel(order.shippingMethod)}</p>
               <p>Costo de envío: ${order.shippingCost}</p>
-              <p>Método de pago: {order.paymentMethod}</p>
+              <p>Método de pago: {getPaymentMethodLabel(order.paymentMethod)}</p>
 
               {order.shippingAddress &&
                 typeof order.shippingAddress === "object" && (
