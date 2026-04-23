@@ -89,6 +89,37 @@ const createOrdersRepository = (pool) => ({
     return result.rows[0] || null;
   },
 
+
+
+  getAdminOrdersWithUsersAndItems: async () => {
+    const result = await pool.query(
+      `
+      SELECT
+        o.id AS order_id,
+        o.created_at,
+        o.status,
+        o.total,
+        o.shipping_method,
+        o.shipping_cost,
+        o.shipping_address,
+        o.payment_method,
+        u.id AS user_id,
+        u.name AS user_name,
+        u.email AS user_email,
+        oi.product_id,
+        oi.quantity,
+        oi.price AS unit_price,
+        p.name AS product_name
+      FROM orders o
+      JOIN users u ON u.id = o.user_id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN products p ON p.id = oi.product_id
+      ORDER BY o.created_at DESC, o.id DESC, oi.id ASC
+      `,
+    );
+
+    return result.rows;
+  },
   getOrdersByUserId: async (userId) => {
     const result = await pool.query(
       `

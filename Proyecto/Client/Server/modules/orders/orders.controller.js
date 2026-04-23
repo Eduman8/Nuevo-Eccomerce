@@ -143,6 +143,21 @@ const createOrdersController = (ordersService) => ({
     }
   },
 
+
+  getAdminOrders: async (_req, res, next) => {
+    try {
+      const orders = await ordersService.getAdminOrders();
+      return res.json(orders);
+    } catch (err) {
+      return next(
+        createHttpError({
+          status: err.status || 500,
+          payload: { error: err.message || "Error al obtener órdenes de admin" },
+          logError: err,
+        }),
+      );
+    }
+  },
   getOrdersByUser: async (req, res, next) => {
     const userId = req.user?.id;
 

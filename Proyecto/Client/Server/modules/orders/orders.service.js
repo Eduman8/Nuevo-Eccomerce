@@ -101,6 +101,36 @@ const assertConfirmableOrder = (order) => {
   }
 };
 
+
+const mapShippingAddress = (shippingAddress) => {
+  const parsed = parseJsonIfNeeded(shippingAddress);
+
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      raw: parsed,
+      address: null,
+      addressNumber: null,
+      city: null,
+      province: null,
+      postalCode: null,
+    };
+  }
+
+  const streetValue = String(parsed.street || parsed.address || "").trim();
+  const streetMatch = streetValue.match(/^(.*?)(?:\s+(\d+[\w-]*))?$/);
+  const baseAddress = String(streetMatch?.[1] || "").trim() || null;
+  const addressNumber = String(parsed.addressNumber || parsed.address_number || streetMatch?.[2] || "").trim() || null;
+
+  return {
+    raw: parsed,
+    address: baseAddress,
+    addressNumber,
+    city: parsed.city || null,
+    province: parsed.province || parsed.state || null,
+    postalCode: parsed.postalCode || parsed.postal_code || parsed.zipCode || null,
+  };
+};
+
 const assertValidOrderTransition = ({ currentStatus, nextStatus }) => {
   if (currentStatus === nextStatus) {
     throw {
@@ -500,6 +530,46 @@ const createOrdersService = ({
     return updatedOrder;
   },
 
+
+  getAdminOrders: async () => {
+    const rows = await ordersRepository.getAdminOrdersWithUsersAndItems();
+    const groupedOrders = new Map();
+
+    for (const row of rows) {
+      if (!groupedOrders.has(row.order_id)) {
+        const shipping = mapShippingAddress(row.shipping_address);
+
+        groupedOrders.set(row.order_id, {
+          id: row.order_id,
+          date: row.created_at,
+          status: row.status,
+          total: Number(row.total),
+          shippingCost: Number(row.shipping_cost || 0),
+          paymentMethod: row.payment_method,
+          shippingMethod: row.shipping_method,
+          buyer: {
+            id: row.user_id,
+            name: row.user_name,
+            email: row.user_email,
+          },
+          shippingAddress: shipping,
+          items: [],
+        });
+      }
+
+      if (row.product_id) {
+        groupedOrders.get(row.order_id).items.push({
+          productId: row.product_id,
+          productName: row.product_name,
+          quantity: Number(row.quantity),
+          unitPrice: Number(row.unit_price),
+          subtotal: Number(row.quantity) * Number(row.unit_price),
+        });
+      }
+    }
+
+    return Array.from(groupedOrders.values());
+  },
   getOrdersByUser: async (userId) => {
     const rows = await ordersRepository.getOrdersByUserId(userId);
 

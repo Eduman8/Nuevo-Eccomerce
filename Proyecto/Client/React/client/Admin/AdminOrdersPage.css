@@ -1,0 +1,41 @@
+.admin-orders-page {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px 40px;
+}
+
+.admin-orders-list {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-order-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--color-bg, #fff);
+}
+
+.admin-order-block {
+  margin-top: 12px;
+}
+
+.admin-order-items {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-order-item-row {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr);
+  gap: 12px;
+  font-size: 0.95rem;
+}
+
+.admin-orders-state {
+  margin-top: 10px;
+}
+
+.admin-orders-state-error {
+  color: #c62828;
+}

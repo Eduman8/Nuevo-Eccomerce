@@ -85,6 +85,7 @@ function Navbar({ user, setUser }) {
           <div className="links">
             <Link to="/">Home</Link>
             {isAdminUser(user) && <Link to="/admin">Admin</Link>}
+            {isAdminUser(user) && <Link to="/admin/orders">Pedidos Admin</Link>}
             {user && <Link to="/orders">Pedidos</Link>}
           </div>
         </div>
