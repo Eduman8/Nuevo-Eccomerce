@@ -14,6 +14,28 @@ const ORDER_STATUS = {
 };
 
 const VALID_ORDER_STATUSES = Object.values(ORDER_STATUS);
+const TERMINAL_ORDER_STATUSES = new Set([
+  ORDER_STATUS.DELIVERED,
+  ORDER_STATUS.CANCELLED,
+  ORDER_STATUS.REJECTED,
+]);
+const ALREADY_CONFIRMED_STATUSES = new Set([
+  ORDER_STATUS.PAID,
+  ORDER_STATUS.SHIPPED,
+  ORDER_STATUS.DELIVERED,
+]);
+const ORDER_STATUS_TRANSITIONS = {
+  [ORDER_STATUS.PENDING]: new Set([
+    ORDER_STATUS.PAID,
+    ORDER_STATUS.CANCELLED,
+    ORDER_STATUS.REJECTED,
+  ]),
+  [ORDER_STATUS.PAID]: new Set([ORDER_STATUS.SHIPPED]),
+  [ORDER_STATUS.SHIPPED]: new Set([ORDER_STATUS.DELIVERED]),
+  [ORDER_STATUS.DELIVERED]: new Set(),
+  [ORDER_STATUS.CANCELLED]: new Set(),
+  [ORDER_STATUS.REJECTED]: new Set(),
+};
 
 const normalizeShippingMethod = (value) => {
   const allowed = ["home_delivery", "pickup"];
@@ -36,6 +58,66 @@ const parseJsonIfNeeded = (value) => {
 
   return value;
 };
+
+const assertOrderOwnership = (order, userId) => {
+  if (!order) {
+    throw { status: 404, message: "Orden no encontrada" };
+  }
+
+  if (String(order.user_id) !== String(userId)) {
+    throw { status: 403, message: "No autorizado para esta orden" };
+  }
+};
+
+const assertPaymentMethod = (order, expectedPaymentMethod, message) => {
+  if (order.payment_method !== expectedPaymentMethod) {
+    throw {
+      status: 400,
+      message,
+    };
+  }
+};
+
+const assertConfirmableOrder = (order) => {
+  if (ALREADY_CONFIRMED_STATUSES.has(order.status)) {
+    throw {
+      status: 409,
+      message: `La orden ya fue confirmada y no puede reconfirmarse en estado ${order.status}`,
+    };
+  }
+
+  if (TERMINAL_ORDER_STATUSES.has(order.status)) {
+    throw {
+      status: 409,
+      message: `No se puede confirmar una orden en estado terminal ${order.status}`,
+    };
+  }
+
+  if (order.status !== ORDER_STATUS.PENDING) {
+    throw {
+      status: 409,
+      message: `La orden no puede confirmarse en estado ${order.status}`,
+    };
+  }
+};
+
+const assertValidOrderTransition = ({ currentStatus, nextStatus }) => {
+  if (currentStatus === nextStatus) {
+    throw {
+      status: 409,
+      message: `La orden ya se encuentra en estado ${currentStatus}`,
+    };
+  }
+
+  const allowedTransitions = ORDER_STATUS_TRANSITIONS[currentStatus] || new Set();
+  if (!allowedTransitions.has(nextStatus)) {
+    throw {
+      status: 409,
+      message: `Transición inválida de estado: ${currentStatus} -> ${nextStatus}`,
+    };
+  }
+};
+
 const createOrdersService = ({
   ordersRepository,
   mercadopagoClient,
@@ -272,23 +354,13 @@ const createOrdersService = ({
       }
 
       const order = orderResult.rows[0];
-      if (String(order.user_id) !== String(userId)) {
-        throw { status: 403, message: "No autorizado para esta orden" };
-      }
-
-      if (order.status !== ORDER_STATUS.PENDING) {
-        throw {
-          status: 409,
-          message: `La orden no puede confirmarse en estado ${order.status}`,
-        };
-      }
-
-      if (order.payment_method !== "cash") {
-        throw {
-          status: 400,
-          message: "La orden no fue creada con método efectivo",
-        };
-      }
+      assertOrderOwnership(order, userId);
+      assertPaymentMethod(
+        order,
+        "cash",
+        "La orden no fue creada con método efectivo",
+      );
+      assertConfirmableOrder(order);
 
       if (String(shippingReference).trim().length < 3) {
         throw {
@@ -354,17 +426,18 @@ const createOrdersService = ({
     try {
       await client.query("BEGIN");
       const orderResult = await client.query(
-        "SELECT id, user_id FROM orders WHERE id = $1 FOR UPDATE",
+        "SELECT * FROM orders WHERE id = $1 FOR UPDATE",
         [orderId],
       );
 
-      if (orderResult.rows.length === 0) {
-        throw { status: 404, message: "Orden no encontrada" };
-      }
-
-      if (String(orderResult.rows[0].user_id) !== String(userId)) {
-        throw { status: 403, message: "No autorizado para esta orden" };
-      }
+      const order = orderResult.rows[0];
+      assertOrderOwnership(order, userId);
+      assertPaymentMethod(
+        order,
+        "mercadopago",
+        "La orden no fue creada con método Mercado Pago",
+      );
+      assertConfirmableOrder(order);
 
       const confirmation = await confirmMercadoPagoPayment({
         client,
@@ -413,9 +486,11 @@ const createOrdersService = ({
       throw { status: 404, message: "Orden no encontrada" };
     }
 
-    if (String(order.user_id) !== String(userId)) {
-      throw { status: 403, message: "No autorizado para esta orden" };
-    }
+    assertOrderOwnership(order, userId);
+    assertValidOrderTransition({
+      currentStatus: order.status,
+      nextStatus: status,
+    });
 
     const updatedOrder = await ordersRepository.updateOrderStatusById({
       status,
