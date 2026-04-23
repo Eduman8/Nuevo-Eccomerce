@@ -190,6 +190,17 @@ const createOrdersService = ({
       throw { status: 400, message: "Método de pago inválido" };
     }
 
+    if (
+      normalizedPaymentMethod === "cash" &&
+      normalizedShippingMethod === "home_delivery"
+    ) {
+      throw {
+        status: 400,
+        message:
+          "No se permite envío a domicilio con pago en efectivo. Selecciona retiro en local.",
+      };
+    }
+
     const cart = await ordersRepository.getCartWithPricesByUserId(userId);
 
     if (cart.length === 0) {
@@ -390,6 +401,15 @@ const createOrdersService = ({
         "cash",
         "La orden no fue creada con método efectivo",
       );
+
+      if (order.shipping_method === "home_delivery") {
+        throw {
+          status: 400,
+          message:
+            "No se puede confirmar en efectivo una orden con envío a domicilio. Debe ser retiro en local.",
+        };
+      }
+
       assertConfirmableOrder(order);
 
       if (String(shippingReference).trim().length < 3) {

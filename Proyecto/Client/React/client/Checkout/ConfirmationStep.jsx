@@ -17,7 +17,7 @@ function ConfirmationStep({ orderSummary, shippingReference, onShippingReference
       />
 
       <button onClick={onConfirmCash} disabled={loading}>
-        {loading ? "Confirmando compra..." : "Confirmar compra en efectivo"}
+        {loading ? "Confirmando pedido..." : "Confirmar pedido"}
       </button>
     </section>
   );

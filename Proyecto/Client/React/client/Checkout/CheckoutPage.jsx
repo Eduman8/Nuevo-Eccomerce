@@ -119,6 +119,12 @@ function CheckoutPage({ user }) {
     [shippingMethod],
   );
 
+  useEffect(() => {
+    if (paymentMethod === "cash" && shippingMethod === "home_delivery") {
+      setShippingMethod("pickup");
+    }
+  }, [paymentMethod, shippingMethod]);
+
   if (!user) {
     return (
       <div className="checkout-page">
@@ -243,9 +249,14 @@ function CheckoutPage({ user }) {
       <h1>Checkout</h1>
       <p>Subtotal carrito: ${total.toFixed(2)}</p>
       <p>Envío estimado: ${shippingCost.toFixed(2)}</p>
+      {paymentMethod === "cash" && <p className="checkout-notice checkout-notice-info">Pago a acordar con el vendedor</p>}
 
       <AddressStep address={address} onChange={updateAddress} />
-      <ShippingStep shippingMethod={shippingMethod} onChange={setShippingMethod} />
+      <ShippingStep
+        shippingMethod={shippingMethod}
+        onChange={setShippingMethod}
+        cashSelected={paymentMethod === "cash"}
+      />
       <PaymentStep
         paymentMethod={paymentMethod}
         onMethodChange={setPaymentMethod}
