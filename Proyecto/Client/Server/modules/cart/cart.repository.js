@@ -9,7 +9,7 @@ const createCartRepository = (pool) => ({
 
   getProductById: async (productId) => {
     const result = await pool.query(
-      "SELECT id, name, stock FROM products WHERE id = $1",
+      "SELECT id, name, stock, active FROM products WHERE id = $1",
       [productId],
     );
     return result.rows[0] || null;
@@ -33,7 +33,7 @@ const createCartRepository = (pool) => ({
 
   getByUserId: async (userId) => {
     const result = await pool.query(
-      `SELECT c.*, p.name, p.price, p.stock
+      `SELECT c.*, p.name, p.price, p.stock, p.active
       FROM cart_items c
       JOIN products p ON c.product_id = p.id
       WHERE c.user_id = $1`,

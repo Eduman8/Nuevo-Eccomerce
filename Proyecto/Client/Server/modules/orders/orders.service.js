@@ -247,7 +247,7 @@ const createOrdersService = ({
       const stock = Number(item.stock || 0);
       const quantity = Number(item.quantity || 0);
 
-      if (stock <= 0) {
+      if (item.active === false || stock <= 0) {
         await client.query("DELETE FROM cart_items WHERE id = $1", [item.id]);
         adjustments.push({
           type: "removed",

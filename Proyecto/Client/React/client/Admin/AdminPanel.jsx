@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useNotification } from "../Notifications/NotificationProvider";
 import {
   buildAuthHeaders,
@@ -8,24 +9,37 @@ import {
 } from "../utils/authSession";
 import "./AdminPanel.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+
 const initialForm = {
   name: "",
   description: "",
   price: "",
   category: "",
   image: "",
-  stock: "",
+  stock: "0",
+  active: true,
 };
 
-const API_BASE_URL = "http://localhost:3000/api";
+const isValidHttpUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    return ["http:", "https:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+};
 
-function AdminPanel({ user, onSessionExpired }) {
+function AdminProductsPage({ onSessionExpired }) {
   const [products, setProducts] = useState([]);
+  const [draftsById, setDraftsById] = useState({});
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [productToDelete, setProductToDelete] = useState(null);
-  const { success, error: notifyError, warning } = useNotification();
+  const [savingById, setSavingById] = useState({});
+  const [deletingById, setDeletingById] = useState({});
+  const [errorMessage, setErrorMessage] = useState("");
+  const { success, warning, error: notifyError, info } = useNotification();
 
   const notifySessionExpired = () => {
     clearStoredAuth();
@@ -33,15 +47,54 @@ function AdminPanel({ user, onSessionExpired }) {
     warning(SESSION_EXPIRED_MESSAGE);
   };
 
+  const withAdminAuth = ({ includeJson = false, headers = {} } = {}) =>
+    buildAuthHeaders({
+      ...(includeJson ? { "Content-Type": "application/json" } : {}),
+      ...headers,
+    });
+
   const loadProducts = async () => {
     setLoading(true);
+    setErrorMessage("");
+
     try {
-      const response = await fetch(`${API_BASE_URL}/products`);
-      const data = await response.json();
-      setProducts(data);
+      const response = await fetch(`${API_BASE_URL}/products/admin`, {
+        headers: withAdminAuth(),
+      });
+
+      const payload = await response.json().catch(() => []);
+
+      if (isUnauthorizedResponse(response)) {
+        notifySessionExpired();
+        setProducts([]);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudieron cargar los productos.");
+      }
+
+      const normalized = Array.isArray(payload) ? payload : [];
+      setProducts(normalized);
+      setDraftsById(
+        normalized.reduce((acc, product) => {
+          acc[product.id] = {
+            name: product.name || "",
+            description: product.description || "",
+            price: String(product.price ?? ""),
+            category: product.category || "",
+            image: product.image || "",
+            stock: String(product.stock ?? 0),
+            active: Boolean(product.active),
+          };
+          return acc;
+        }, {}),
+      );
     } catch (error) {
       console.error(error);
-      notifyError("No se pudieron cargar los productos.");
+      setErrorMessage(error.message || "No se pudieron cargar los productos.");
+      notifyError(error.message || "No se pudieron cargar los productos.");
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -51,26 +104,55 @@ function AdminPanel({ user, onSessionExpired }) {
     loadProducts();
   }, []);
 
-  const handleInputChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  const handleCreateChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
-  const handleCreateProduct = async (event) => {
+  const handleDraftChange = (productId, event) => {
+    const { name, value, type, checked } = event.target;
+    setDraftsById((prev) => ({
+      ...prev,
+      [productId]: {
+        ...(prev[productId] || {}),
+        [name]: type === "checkbox" ? checked : value,
+      },
+    }));
+  };
+
+  const summary = useMemo(() => {
+    const total = products.length;
+    const active = products.filter((p) => p.active).length;
+    const noStock = products.filter((p) => Number(p.stock || 0) <= 0).length;
+
+    return { total, active, inactive: total - active, noStock };
+  }, [products]);
+
+  const createProduct = async (event) => {
     event.preventDefault();
+
+    const normalizedImage = String(form.image || "").trim();
+
+    if (!normalizedImage) {
+      notifyError("La imagen es obligatoria para crear un producto.");
+      return;
+    }
+
+    if (!isValidHttpUrl(normalizedImage)) {
+      notifyError("La imagen debe ser una URL válida (http/https).");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/products`, {
+      const response = await fetch(`${API_BASE_URL}/products/admin`, {
         method: "POST",
-        headers: buildAuthHeaders({
-          "Content-Type": "application/json",
-          "x-user-email": user?.email || "",
-        }),
-        body: JSON.stringify(form),
+        headers: withAdminAuth({ includeJson: true }),
+        body: JSON.stringify({ ...form, image: normalizedImage }),
       });
 
-      const data = await response.json().catch(() => null);
+      const payload = await response.json().catch(() => null);
 
       if (isUnauthorizedResponse(response)) {
         notifySessionExpired();
@@ -78,28 +160,44 @@ function AdminPanel({ user, onSessionExpired }) {
       }
 
       if (!response.ok) {
-        throw new Error(data?.error || "Error al crear producto");
+        throw new Error(payload?.error || "No se pudo crear el producto.");
       }
 
-      setProducts((prev) => [data, ...prev]);
-      setForm(initialForm);
       success("Producto creado correctamente.");
+      setForm(initialForm);
+      await loadProducts();
     } catch (error) {
       console.error(error);
-      notifyError(error.message);
+      notifyError(error.message || "No se pudo crear el producto.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteProduct = async (productId) => {
+  const saveProduct = async (productId) => {
+    const draft = draftsById[productId] || {};
+    const normalizedImage = String(draft.image || "").trim();
+
+    if (!normalizedImage) {
+      notifyError("La imagen no puede quedar vacía al editar el producto.");
+      return;
+    }
+
+    if (!isValidHttpUrl(normalizedImage)) {
+      notifyError("La imagen debe ser una URL válida (http/https).");
+      return;
+    }
+
+    setSavingById((prev) => ({ ...prev, [productId]: true }));
+
     try {
-      const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
-        method: "DELETE",
-        headers: buildAuthHeaders({
-          "x-user-email": user?.email || "",
-        }),
+      const response = await fetch(`${API_BASE_URL}/products/admin/${productId}`, {
+        method: "PATCH",
+        headers: withAdminAuth({ includeJson: true }),
+        body: JSON.stringify({ ...draft, image: normalizedImage }),
       });
+
+      const payload = await response.json().catch(() => null);
 
       if (isUnauthorizedResponse(response)) {
         notifySessionExpired();
@@ -107,132 +205,146 @@ function AdminPanel({ user, onSessionExpired }) {
       }
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "No se pudo eliminar el producto");
+        throw new Error(payload?.error || "No se pudo guardar el producto.");
       }
 
-      setProducts((prev) => prev.filter((product) => product.id !== productId));
-      success("Producto eliminado.");
+      setProducts((prev) => prev.map((product) => (product.id === productId ? payload : product)));
+      success(`Producto #${productId} actualizado.`);
     } catch (error) {
       console.error(error);
-      notifyError(error.message);
+      notifyError(error.message || "No se pudo guardar el producto.");
     } finally {
-      setProductToDelete(null);
+      setSavingById((prev) => ({ ...prev, [productId]: false }));
+    }
+  };
+
+  const deleteOrDeactivate = async (product) => {
+    const confirmed = window.confirm(
+      `¿Seguro que querés eliminar o desactivar ${product.name}?`,
+    );
+    if (!confirmed) {
+      info("Operación cancelada.");
+      return;
+    }
+
+    setDeletingById((prev) => ({ ...prev, [product.id]: true }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/admin/${product.id}`, {
+        method: "DELETE",
+        headers: withAdminAuth(),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (isUnauthorizedResponse(response)) {
+        notifySessionExpired();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo eliminar el producto.");
+      }
+
+      success(payload?.message || "Producto actualizado.");
+      await loadProducts();
+    } catch (error) {
+      console.error(error);
+      notifyError(error.message || "No se pudo eliminar el producto.");
+    } finally {
+      setDeletingById((prev) => ({ ...prev, [product.id]: false }));
     }
   };
 
   return (
-    <div className="admin-container">
-      <h1>Panel Admin</h1>
-      <p>Gestioná productos: crear, listar y borrar.</p>
+    <section className="admin-products-page">
+      <header className="admin-products-header">
+        <div>
+          <h1>Administración de productos</h1>
+          <p>Gestioná catálogo, stock, precios y estado sin afectar pedidos históricos.</p>
+        </div>
+        <Link to="/admin/orders" className="admin-products-link">
+          Ir a pedidos
+        </Link>
+      </header>
 
-      <form className="admin-form" onSubmit={handleCreateProduct}>
-        <input
-          name="name"
-          value={form.name}
-          onChange={handleInputChange}
-          placeholder="Nombre del producto"
-          required
-        />
-        <input
-          name="description"
-          value={form.description}
-          onChange={handleInputChange}
-          placeholder="Descripción"
-        />
-        <input
-          name="price"
-          type="number"
-          min="0"
-          step="0.01"
-          value={form.price}
-          onChange={handleInputChange}
-          placeholder="Precio"
-          required
-        />
-        <input
-          name="category"
-          value={form.category}
-          onChange={handleInputChange}
-          placeholder="Categoría (ej: tazas)"
-          required
-        />
-        <input
-          name="image"
-          value={form.image}
-          onChange={handleInputChange}
-          placeholder="URL de imagen"
-          required
-        />
-        <input
-          name="stock"
-          type="number"
-          min="0"
-          value={form.stock}
-          onChange={handleInputChange}
-          placeholder="Stock"
-        />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Guardando..." : "Agregar producto"}
-        </button>
+      <div className="admin-products-kpis">
+        <span>Total: {summary.total}</span>
+        <span>Activos: {summary.active}</span>
+        <span>Inactivos: {summary.inactive}</span>
+        <span>Sin stock: {summary.noStock}</span>
+      </div>
+
+      <form className="admin-products-create" onSubmit={createProduct}>
+        <h2>Crear producto</h2>
+        <input name="name" placeholder="Nombre" value={form.name} onChange={handleCreateChange} required />
+        <input name="price" type="number" min="0" step="0.01" placeholder="Precio" value={form.price} onChange={handleCreateChange} required />
+        <input name="stock" type="number" min="0" step="1" placeholder="Stock" value={form.stock} onChange={handleCreateChange} required />
+        <input name="category" placeholder="Categoría" value={form.category} onChange={handleCreateChange} required />
+        <input name="image" type="url" placeholder="URL de imagen" value={form.image} onChange={handleCreateChange} required />
+        <textarea name="description" placeholder="Descripción" value={form.description} onChange={handleCreateChange} rows={2} />
+        <label className="admin-checkbox">
+          <input type="checkbox" name="active" checked={form.active} onChange={handleCreateChange} />
+          Producto activo
+        </label>
+        <button type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Crear producto"}</button>
       </form>
 
-      {loading ? (
-        <p>Cargando productos...</p>
-      ) : (
-        <div className="admin-products">
-          {products.map((product) => (
-            <article key={product.id} className="admin-product-card">
-              <img src={product.image} alt={product.name} />
-              <div>
-                <h3>{product.name}</h3>
-                <p>{product.description}</p>
-                <p>
-                  <strong>${product.price}</strong> · {product.category}
-                </p>
-                <p>Stock: {product.stock ?? 0}</p>
-              </div>
-              <button
-                className="danger-btn"
-                onClick={() => setProductToDelete(product)}
-              >
-                Borrar
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
+      {loading && <p className="admin-state">Cargando productos...</p>}
+      {!loading && errorMessage && <p className="admin-state admin-state-error">{errorMessage}</p>}
+      {!loading && !errorMessage && products.length === 0 && <p className="admin-state">No hay productos.</p>}
 
-      {productToDelete && (
-        <div className="admin-confirm-overlay" role="dialog" aria-modal="true">
-          <div className="admin-confirm-modal">
-            <h3>Confirmar eliminación</h3>
-            <p>
-              ¿Seguro que querés borrar <strong>{productToDelete.name}</strong>?
-            </p>
-            <div className="admin-confirm-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setProductToDelete(null);
-                  warning("Eliminación cancelada.");
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="danger-btn"
-                onClick={() => handleDeleteProduct(productToDelete.id)}
-              >
-                Sí, borrar
-              </button>
-            </div>
-          </div>
+      {!loading && !errorMessage && products.length > 0 && (
+        <div className="admin-products-list">
+          {products.map((product) => {
+            const draft = draftsById[product.id] || {};
+            const hasStock = Number(draft.stock ?? product.stock ?? 0) > 0;
+            const isActive = Boolean(draft.active);
+
+            return (
+              <article key={product.id} className="admin-product-row">
+                <img src={draft.image || "https://via.placeholder.com/120x120?text=Sin+Imagen"} alt={draft.name || product.name} />
+                <div className="admin-product-fields">
+                  <div className="admin-product-title-row">
+                    <h3>{draft.name || product.name}</h3>
+                    {!isActive && <span className="badge badge-inactive">Inactivo</span>}
+                    {!hasStock && <span className="badge badge-stock">Sin stock</span>}
+                  </div>
+
+                  <div className="admin-product-grid">
+                    <input name="name" value={draft.name || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <input name="price" type="number" min="0" step="0.01" value={draft.price || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <input name="stock" type="number" min="0" step="1" value={draft.stock || "0"} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <input name="category" value={draft.category || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <input name="image" type="url" value={draft.image || ""} onChange={(event) => handleDraftChange(product.id, event)} required />
+                    <textarea name="description" rows={2} value={draft.description || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <label className="admin-checkbox">
+                      <input type="checkbox" name="active" checked={isActive} onChange={(event) => handleDraftChange(product.id, event)} />
+                      Activo
+                    </label>
+                  </div>
+                </div>
+
+                <div className="admin-product-actions">
+                  <button type="button" onClick={() => saveProduct(product.id)} disabled={Boolean(savingById[product.id] || deletingById[product.id])}>
+                    {savingById[product.id] ? "Guardando..." : "Guardar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-btn"
+                    onClick={() => deleteOrDeactivate(product)}
+                    disabled={Boolean(deletingById[product.id] || savingById[product.id])}
+                  >
+                    {deletingById[product.id] ? "Procesando..." : "Eliminar / desactivar"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
-export default AdminPanel;
+export default AdminProductsPage;

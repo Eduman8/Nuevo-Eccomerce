@@ -182,6 +182,11 @@ export function CartProvider({ children, user, onSessionExpired }) {
       return;
     }
 
+    if (product?.active === false) {
+      warning("Este producto está inactivo y no se puede comprar.");
+      return;
+    }
+
     if (Number(product?.stock || 0) <= 0) {
       warning("Producto agotado.");
       return;

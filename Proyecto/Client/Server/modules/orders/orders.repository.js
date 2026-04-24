@@ -2,7 +2,7 @@ const createOrdersRepository = (pool) => ({
   getCartWithPricesByUserId: async (userId, client = null) => {
     const executor = client || pool;
     const cartResult = await executor.query(
-      `SELECT c.*, p.price, p.stock, p.name
+      `SELECT c.*, p.price, p.stock, p.name, p.active
        FROM cart_items c
        JOIN products p ON c.product_id = p.id
        WHERE c.user_id = $1`,

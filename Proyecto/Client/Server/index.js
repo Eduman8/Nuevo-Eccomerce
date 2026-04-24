@@ -16,6 +16,7 @@ const createPaymentsRouter = require("./modules/payments/payments.routes");
 
 const createOrdersWorkflow = require("./modules/orders/orders.workflow");
 const ensureOrderSchema = require("./modules/orders/orders.schema");
+const ensureProductsSchema = require("./modules/products/products.schema");
 const errorHandler = require("./middlewares/errorHandler");
 
 const {
@@ -81,7 +82,7 @@ app.use(
 
 app.use(errorHandler);
 
-ensureOrderSchema(pool)
+Promise.all([ensureOrderSchema(pool), ensureProductsSchema(pool)])
   .then(() => {
     app.listen(PORT, () => {
       if (!MP_ACCESS_TOKEN) {
