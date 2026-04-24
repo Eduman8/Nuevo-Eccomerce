@@ -23,9 +23,16 @@ const normalizeStock = (stock) => {
   return parsed;
 };
 
-const normalizeImageUrl = (image) => {
+const normalizeImageUrl = (image, { required = false } = {}) => {
   const normalized = normalizeOptionalString(image);
-  if (!normalized) return "";
+
+  if (!normalized) {
+    if (required) {
+      throw { status: 400, payload: { error: "imageUrl es obligatorio y no puede estar vacío" } };
+    }
+
+    return "";
+  }
 
   try {
     const parsed = new URL(normalized);
@@ -53,7 +60,7 @@ const normalizeActive = (active, fallback = true) => {
   throw { status: 400, payload: { error: "active debe ser boolean" } };
 };
 
-const validateAndBuildPayload = (input, fallback = {}) => {
+const validateAndBuildPayload = (input, fallback = {}, { requireImage = false } = {}) => {
   const name = normalizeString(input.name ?? fallback.name);
   if (!name) {
     throw { status: 400, payload: { error: "name es obligatorio" } };
@@ -64,7 +71,9 @@ const validateAndBuildPayload = (input, fallback = {}) => {
     description: normalizeOptionalString(input.description ?? fallback.description),
     price: normalizePrice(input.price ?? fallback.price),
     category: normalizeCategory(input.category ?? fallback.category),
-    image: normalizeImageUrl(input.image ?? input.imageUrl ?? fallback.image),
+    image: normalizeImageUrl(input.image ?? input.imageUrl ?? fallback.image, {
+      required: requireImage,
+    }),
     stock: normalizeStock(input.stock ?? fallback.stock),
     active: normalizeActive(input.active, fallback.active ?? true),
   };
@@ -76,7 +85,9 @@ const createProductsService = (productsRepository) => ({
   getAdminProducts: async () => productsRepository.getAllForAdmin(),
 
   createProduct: async (input) => {
-    const payload = validateAndBuildPayload(input, { stock: 0, active: true });
+    const payload = validateAndBuildPayload(input, { stock: 0, active: true }, {
+      requireImage: true,
+    });
     return productsRepository.create(payload);
   },
 
@@ -86,7 +97,9 @@ const createProductsService = (productsRepository) => ({
       throw { status: 404, payload: { error: "Producto no encontrado" } };
     }
 
-    const payload = validateAndBuildPayload(input, existingProduct);
+    const payload = validateAndBuildPayload(input, existingProduct, {
+      requireImage: true,
+    });
     return productsRepository.updateById({ id, ...payload });
   },
 

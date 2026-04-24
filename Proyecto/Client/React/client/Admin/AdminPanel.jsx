@@ -21,6 +21,15 @@ const initialForm = {
   active: true,
 };
 
+const isValidHttpUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    return ["http:", "https:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+};
+
 function AdminProductsPage({ onSessionExpired }) {
   const [products, setProducts] = useState([]);
   const [draftsById, setDraftsById] = useState({});
@@ -121,13 +130,26 @@ function AdminProductsPage({ onSessionExpired }) {
 
   const createProduct = async (event) => {
     event.preventDefault();
+
+    const normalizedImage = String(form.image || "").trim();
+
+    if (!normalizedImage) {
+      notifyError("La imagen es obligatoria para crear un producto.");
+      return;
+    }
+
+    if (!isValidHttpUrl(normalizedImage)) {
+      notifyError("La imagen debe ser una URL válida (http/https).");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/products/admin`, {
         method: "POST",
         headers: withAdminAuth({ includeJson: true }),
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, image: normalizedImage }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -153,13 +175,26 @@ function AdminProductsPage({ onSessionExpired }) {
   };
 
   const saveProduct = async (productId) => {
+    const draft = draftsById[productId] || {};
+    const normalizedImage = String(draft.image || "").trim();
+
+    if (!normalizedImage) {
+      notifyError("La imagen no puede quedar vacía al editar el producto.");
+      return;
+    }
+
+    if (!isValidHttpUrl(normalizedImage)) {
+      notifyError("La imagen debe ser una URL válida (http/https).");
+      return;
+    }
+
     setSavingById((prev) => ({ ...prev, [productId]: true }));
 
     try {
       const response = await fetch(`${API_BASE_URL}/products/admin/${productId}`, {
         method: "PATCH",
         headers: withAdminAuth({ includeJson: true }),
-        body: JSON.stringify(draftsById[productId]),
+        body: JSON.stringify({ ...draft, image: normalizedImage }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -246,7 +281,7 @@ function AdminProductsPage({ onSessionExpired }) {
         <input name="price" type="number" min="0" step="0.01" placeholder="Precio" value={form.price} onChange={handleCreateChange} required />
         <input name="stock" type="number" min="0" step="1" placeholder="Stock" value={form.stock} onChange={handleCreateChange} required />
         <input name="category" placeholder="Categoría" value={form.category} onChange={handleCreateChange} required />
-        <input name="image" placeholder="URL de imagen" value={form.image} onChange={handleCreateChange} />
+        <input name="image" type="url" placeholder="URL de imagen" value={form.image} onChange={handleCreateChange} required />
         <textarea name="description" placeholder="Descripción" value={form.description} onChange={handleCreateChange} rows={2} />
         <label className="admin-checkbox">
           <input type="checkbox" name="active" checked={form.active} onChange={handleCreateChange} />
@@ -281,7 +316,7 @@ function AdminProductsPage({ onSessionExpired }) {
                     <input name="price" type="number" min="0" step="0.01" value={draft.price || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <input name="stock" type="number" min="0" step="1" value={draft.stock || "0"} onChange={(event) => handleDraftChange(product.id, event)} />
                     <input name="category" value={draft.category || ""} onChange={(event) => handleDraftChange(product.id, event)} />
-                    <input name="image" value={draft.image || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <input name="image" type="url" value={draft.image || ""} onChange={(event) => handleDraftChange(product.id, event)} required />
                     <textarea name="description" rows={2} value={draft.description || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <label className="admin-checkbox">
                       <input type="checkbox" name="active" checked={isActive} onChange={(event) => handleDraftChange(product.id, event)} />
