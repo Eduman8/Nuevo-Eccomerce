@@ -46,7 +46,7 @@ const ADMIN_ORDER_STATUS_TRANSITIONS = {
     ORDER_STATUS.DELIVERED,
     ORDER_STATUS.CANCELLED,
   ]),
-  [ORDER_STATUS.DELIVERED]: new Set(),
+  [ORDER_STATUS.DELIVERED]: new Set([ORDER_STATUS.CANCELLED]),
   [ORDER_STATUS.CANCELLED]: new Set(),
   [ORDER_STATUS.REJECTED]: new Set(),
 };
@@ -345,6 +345,37 @@ const createOrdersService = ({
     }
 
     return order;
+  };
+
+  const validateStockBeforeDiscount = async ({ client, orderId }) => {
+    const orderItems = await ordersRepository.getOrderItemsWithProductStockForUpdate({
+      orderId,
+      client,
+    });
+
+    if (orderItems.length === 0) {
+      throw {
+        status: 409,
+        message: "La orden no tiene items para descontar stock",
+      };
+    }
+
+    const stockIssues = orderItems
+      .filter((item) => Number(item.stock) < Number(item.quantity))
+      .map((item) => ({
+        productId: item.product_id,
+        name: item.name,
+        available: Number(item.stock),
+        requested: Number(item.quantity),
+      }));
+
+    if (stockIssues.length > 0) {
+      throw {
+        status: 409,
+        message: "No hay stock suficiente para pasar la orden a pagada",
+        details: stockIssues,
+      };
+    }
   };
 
   return {
@@ -820,10 +851,27 @@ const createOrdersService = ({
           throw { status: 404, message: "Orden no encontrada" };
         }
 
+        if (order.status === normalizedStatus) {
+          await client.query("COMMIT");
+          return {
+            ...order,
+            message: `La orden ya se encuentra en estado ${normalizedStatus}`,
+          };
+        }
+
         assertValidAdminOrderTransition({
           currentStatus: order.status,
           nextStatus: normalizedStatus,
         });
+
+        const shouldDiscountStock =
+          order.status === ORDER_STATUS.PENDING &&
+          normalizedStatus === ORDER_STATUS.PAID;
+
+        if (shouldDiscountStock) {
+          await validateStockBeforeDiscount({ client, orderId });
+          await ordersRepository.decreaseStockFromOrder({ orderId, client });
+        }
 
         const shouldRestoreStock =
           order.status !== ORDER_STATUS.CANCELLED &&

@@ -119,6 +119,38 @@ const createOrdersRepository = (pool) => ({
     );
   },
 
+  getOrderItemsWithProductStockForUpdate: async ({ orderId, client }) => {
+    const result = await client.query(
+      `
+      SELECT oi.product_id, oi.quantity, p.stock, p.name
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = $1
+      FOR UPDATE OF p
+      `,
+      [orderId],
+    );
+
+    return result.rows;
+  },
+
+  decreaseStockFromOrder: async ({ orderId, client }) => {
+    await client.query(
+      `
+      UPDATE products p
+      SET stock = p.stock - oi.total_quantity
+      FROM (
+        SELECT product_id, SUM(quantity)::int AS total_quantity
+        FROM order_items
+        WHERE order_id = $1
+        GROUP BY product_id
+      ) oi
+      WHERE p.id = oi.product_id
+      `,
+      [orderId],
+    );
+  },
+
   deleteOrderById: async ({ orderId, client = null }) => {
     const executor = client || pool;
 
