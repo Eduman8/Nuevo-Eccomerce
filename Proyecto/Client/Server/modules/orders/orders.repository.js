@@ -15,7 +15,7 @@ const createOrdersRepository = (pool) => ({
   getOrderItemsByOrderId: async (orderId, client = null) => {
     const executor = client || pool;
     const result = await executor.query(
-      `SELECT oi.quantity, oi.price, p.name
+      `SELECT oi.product_id, oi.quantity, oi.price, p.name
        FROM order_items oi
        JOIN products p ON p.id = oi.product_id
        WHERE oi.order_id = $1
@@ -74,6 +74,15 @@ const createOrdersRepository = (pool) => ({
     return orderResult.rows[0] || null;
   },
 
+  getOrderByIdForUpdate: async (orderId, client) => {
+    const result = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [orderId],
+    );
+
+    return result.rows[0] || null;
+  },
+
   updateOrderPreferenceId: async ({ preferenceId, orderId }) => {
     await pool.query("UPDATE orders SET mp_preference_id = $1 WHERE id = $2", [
       preferenceId,
@@ -83,13 +92,31 @@ const createOrdersRepository = (pool) => ({
 
   connect: async () => pool.connect(),
 
-  updateOrderStatusById: async ({ status, orderId }) => {
-    const result = await pool.query(
+  updateOrderStatusById: async ({ status, orderId, client = null }) => {
+    const executor = client || pool;
+    const result = await executor.query(
       "UPDATE orders SET status = $1 WHERE id = $2 RETURNING *",
       [status, orderId],
     );
 
     return result.rows[0] || null;
+  },
+
+  restoreStockFromOrder: async ({ orderId, client }) => {
+    await client.query(
+      `
+      UPDATE products p
+      SET stock = p.stock + oi.total_quantity
+      FROM (
+        SELECT product_id, SUM(quantity)::int AS total_quantity
+        FROM order_items
+        WHERE order_id = $1
+        GROUP BY product_id
+      ) oi
+      WHERE p.id = oi.product_id
+      `,
+      [orderId],
+    );
   },
 
   deleteOrderById: async ({ orderId, client = null }) => {
