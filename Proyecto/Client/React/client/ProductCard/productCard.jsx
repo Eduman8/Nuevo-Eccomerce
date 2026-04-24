@@ -6,6 +6,8 @@ function productCard({ product }) {
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const hasStock = Number(product?.stock || 0) > 0;
+  const isActive = product?.active !== false;
+  const canBuy = hasStock && isActive;
 
   return (
     <div
@@ -15,15 +17,16 @@ function productCard({ product }) {
       <img src={product.image} alt={product.name} />
       <h3>{product.name}</h3>
       <p>${product.price}</p>
-      {!hasStock && <p>Sin stock</p>}
+      {!isActive && <p>No disponible</p>}
+      {isActive && !hasStock && <p>Sin stock</p>}
       <button
         onClick={(event) => {
           event.stopPropagation();
           addToCart(product);
         }}
-        disabled={!hasStock}
+        disabled={!canBuy}
       >
-        {hasStock ? "Agregar al carrito" : "Producto agotado"}
+        {canBuy ? "Agregar al carrito" : !isActive ? "Producto inactivo" : "Producto agotado"}
       </button>
     </div>
   );

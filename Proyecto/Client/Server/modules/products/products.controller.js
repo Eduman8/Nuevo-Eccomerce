@@ -1,85 +1,72 @@
 const { createHttpError } = require("../../utils/httpError");
 
+const handleServiceError = (next, error, fallbackMessage) => {
+  if (error.status) {
+    return next(
+      createHttpError({
+        status: error.status,
+        payload: error.payload || { error: error.message || fallbackMessage },
+      }),
+    );
+  }
+
+  return next(
+    createHttpError({
+      status: 500,
+      payload: { error: fallbackMessage },
+      logError: error,
+    }),
+  );
+};
+
 const createProductsController = (productsService) => ({
-  getProducts: async (req, res) => {
-    const products = await productsService.getProducts();
-    res.json(products);
+  getPublicProducts: async (req, res, next) => {
+    try {
+      const products = await productsService.getPublicProducts();
+      res.json(products);
+    } catch (error) {
+      handleServiceError(next, error, "Error al listar productos");
+    }
+  },
+
+  getAdminProducts: async (req, res, next) => {
+    try {
+      const products = await productsService.getAdminProducts();
+      res.json(products);
+    } catch (error) {
+      handleServiceError(next, error, "Error al listar productos para admin");
+    }
   },
 
   createProduct: async (req, res, next) => {
     try {
       const product = await productsService.createProduct(req.body);
       res.status(201).json(product);
-    } catch (err) {
-      if (err.status) {
-        return next(
-          createHttpError({
-            status: err.status,
-            payload: err.payload,
-          }),
-        );
-      }
-
-      return next(
-        createHttpError({
-          status: 500,
-          payload: { error: "Error al crear producto" },
-          logError: err,
-        }),
-      );
+    } catch (error) {
+      handleServiceError(next, error, "Error al crear producto");
     }
   },
 
-  deleteProduct: async (req, res, next) => {
-    const { id } = req.params;
-
+  updateProduct: async (req, res, next) => {
     try {
-      const product = await productsService.deleteProduct(id);
-      res.json({ message: "Producto eliminado", product });
-    } catch (err) {
-      if (err.status) {
-        return next(
-          createHttpError({
-            status: err.status,
-            payload: err.payload,
-          }),
-        );
-      }
-
-      return next(
-        createHttpError({
-          status: 500,
-          payload: { error: "Error al eliminar producto" },
-          logError: err,
-        }),
-      );
-    }
-  },
-
-  updateProductCategory: async (req, res, next) => {
-    const { id } = req.params;
-    const { category } = req.body;
-
-    try {
-      const product = await productsService.updateProductCategory({ id, category });
+      const product = await productsService.updateProduct(req.params.id, req.body);
       res.json(product);
-    } catch (err) {
-      if (err.status) {
-        return next(
-          createHttpError({
-            status: err.status,
-            payload: err.payload,
-          }),
-        );
-      }
+    } catch (error) {
+      handleServiceError(next, error, "Error al actualizar producto");
+    }
+  },
 
-      return next(
-        createHttpError({
-          status: 500,
-          payload: { error: "Error al actualizar producto" },
-          logError: err,
-        }),
-      );
+  removeProduct: async (req, res, next) => {
+    try {
+      const result = await productsService.deleteOrDeactivateProduct(req.params.id);
+      const message =
+        result.mode === "deactivated"
+          ? "Producto desactivado porque tiene pedidos asociados"
+          : "Producto eliminado";
+
+      res.json({ message, mode: result.mode, product: result.product });
+    } catch (error) {
+      handleServiceError(next, error, "Error al eliminar producto");
     }
   },
 });

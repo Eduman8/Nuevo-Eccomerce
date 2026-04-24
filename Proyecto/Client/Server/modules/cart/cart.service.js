@@ -7,6 +7,10 @@ const createCartService = (cartRepository) => ({
       throw { status: 404, payload: { error: "Producto no encontrado" } };
     }
 
+    if (product.active === false) {
+      throw { status: 409, payload: { error: "Producto inactivo" } };
+    }
+
     const availableStock = Number(product.stock || 0);
 
     if (availableStock <= 0) {
@@ -62,7 +66,7 @@ const createCartService = (cartRepository) => ({
       const stock = Number(item.stock || 0);
       const quantity = Number(item.quantity || 0);
 
-      if (stock <= 0) {
+      if (item.active === false || stock <= 0) {
         await cartRepository.deleteById(item.id);
         continue;
       }
