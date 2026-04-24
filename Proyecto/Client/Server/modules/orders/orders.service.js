@@ -35,6 +35,26 @@ const ORDER_STATUS_TRANSITIONS = {
   [ORDER_STATUS.CANCELLED]: new Set(),
   [ORDER_STATUS.REJECTED]: new Set(),
 };
+const ADMIN_ORDER_STATUS_TRANSITIONS = {
+  [ORDER_STATUS.PENDING]: new Set([
+    ORDER_STATUS.PAID,
+    ORDER_STATUS.CANCELLED,
+    ORDER_STATUS.REJECTED,
+  ]),
+  [ORDER_STATUS.PAID]: new Set([ORDER_STATUS.SHIPPED, ORDER_STATUS.CANCELLED]),
+  [ORDER_STATUS.SHIPPED]: new Set([
+    ORDER_STATUS.DELIVERED,
+    ORDER_STATUS.CANCELLED,
+  ]),
+  [ORDER_STATUS.DELIVERED]: new Set([ORDER_STATUS.CANCELLED]),
+  [ORDER_STATUS.CANCELLED]: new Set(),
+  [ORDER_STATUS.REJECTED]: new Set(),
+};
+const STOCK_DISCOUNTED_STATUSES = new Set([
+  ORDER_STATUS.PAID,
+  ORDER_STATUS.SHIPPED,
+  ORDER_STATUS.DELIVERED,
+]);
 
 const normalizeShippingMethod = (value) => {
   const allowed = ["home_delivery", "pickup"];
@@ -142,6 +162,24 @@ const assertValidOrderTransition = ({ currentStatus, nextStatus }) => {
   }
 
   const allowedTransitions = ORDER_STATUS_TRANSITIONS[currentStatus] || new Set();
+  if (!allowedTransitions.has(nextStatus)) {
+    throw {
+      status: 409,
+      message: `Transición inválida de estado: ${currentStatus} -> ${nextStatus}`,
+    };
+  }
+};
+const assertValidAdminOrderTransition = ({ currentStatus, nextStatus }) => {
+  if (currentStatus === nextStatus) {
+    throw {
+      status: 409,
+      message: `La orden ya se encuentra en estado ${currentStatus}`,
+    };
+  }
+
+  const allowedTransitions =
+    ADMIN_ORDER_STATUS_TRANSITIONS[currentStatus] || new Set();
+
   if (!allowedTransitions.has(nextStatus)) {
     throw {
       status: 409,
@@ -307,6 +345,37 @@ const createOrdersService = ({
     }
 
     return order;
+  };
+
+  const validateStockBeforeDiscount = async ({ client, orderId }) => {
+    const orderItems = await ordersRepository.getOrderItemsWithProductStockForUpdate({
+      orderId,
+      client,
+    });
+
+    if (orderItems.length === 0) {
+      throw {
+        status: 409,
+        message: "La orden no tiene items para descontar stock",
+      };
+    }
+
+    const stockIssues = orderItems
+      .filter((item) => Number(item.stock) < Number(item.quantity))
+      .map((item) => ({
+        productId: item.product_id,
+        name: item.name,
+        available: Number(item.stock),
+        requested: Number(item.quantity),
+      }));
+
+    if (stockIssues.length > 0) {
+      throw {
+        status: 409,
+        message: "No hay stock suficiente para pasar la orden a pagada",
+        details: stockIssues,
+      };
+    }
   };
 
   return {
@@ -594,12 +663,12 @@ const createOrdersService = ({
 
     confirmCashOrderFromCheckout: async (
       userId,
-      { shippingAddress, shippingMethod, paymentMethod, shippingReference },
+      { shippingAddress, shippingMethod, paymentMethod },
     ) => {
-      if (!userId || !shippingReference) {
+      if (!userId) {
         throw {
           status: 400,
-          message: "shippingReference es obligatorio",
+          message: "userId es obligatorio",
         };
       }
 
@@ -608,13 +677,6 @@ const createOrdersService = ({
 
       if (normalizedPaymentMethod !== "cash") {
         throw { status: 400, message: "Método de pago inválido para efectivo" };
-      }
-
-      if (String(shippingReference).trim().length < 3) {
-        throw {
-          status: 400,
-          message: "Envío rechazado: referencia inválida",
-        };
       }
 
       const client = await ordersRepository.connect();
@@ -639,18 +701,14 @@ const createOrdersService = ({
           breakdown,
         });
 
-        await finalizeOrderWithStockValidation(client, {
-          order,
-          userId,
-          paymentReference: `cash:${shippingReference}`,
-        });
+        await client.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
 
         await client.query("COMMIT");
 
         return {
-          message: "Orden confirmada en efectivo",
+          message: "Orden creada en efectivo. Pendiente de confirmación.",
           orderId: order.id,
-          status: ORDER_STATUS.PAID,
+          status: ORDER_STATUS.PENDING,
           adjustments,
         };
       } catch (err) {
@@ -783,24 +841,61 @@ const createOrdersService = ({
         };
       }
 
-      const order = await ordersRepository.getOrderById(orderId);
-      if (!order) {
-        throw { status: 404, message: "Orden no encontrada" };
+      const client = await ordersRepository.connect();
+
+      try {
+        await client.query("BEGIN");
+
+        const order = await ordersRepository.getOrderByIdForUpdate(orderId, client);
+        if (!order) {
+          throw { status: 404, message: "Orden no encontrada" };
+        }
+
+        if (order.status === normalizedStatus) {
+          await client.query("COMMIT");
+          return {
+            ...order,
+            message: `La orden ya se encuentra en estado ${normalizedStatus}`,
+          };
+        }
+
+        assertValidAdminOrderTransition({
+          currentStatus: order.status,
+          nextStatus: normalizedStatus,
+        });
+
+        const shouldDiscountStock =
+          order.status === ORDER_STATUS.PENDING &&
+          normalizedStatus === ORDER_STATUS.PAID;
+
+        if (shouldDiscountStock) {
+          await validateStockBeforeDiscount({ client, orderId });
+          await ordersRepository.decreaseStockFromOrder({ orderId, client });
+        }
+
+        const shouldRestoreStock =
+          order.status !== ORDER_STATUS.CANCELLED &&
+          normalizedStatus === ORDER_STATUS.CANCELLED &&
+          STOCK_DISCOUNTED_STATUSES.has(order.status);
+
+        if (shouldRestoreStock) {
+          await ordersRepository.restoreStockFromOrder({ orderId, client });
+        }
+
+        const updatedOrder = await ordersRepository.updateOrderStatusById({
+          orderId,
+          status: normalizedStatus,
+          client,
+        });
+
+        await client.query("COMMIT");
+        return updatedOrder;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
       }
-
-      if (order.status === normalizedStatus) {
-        throw {
-          status: 409,
-          message: `La orden ya se encuentra en estado ${normalizedStatus}`,
-        };
-      }
-
-      const updatedOrder = await ordersRepository.updateOrderStatusById({
-        orderId,
-        status: normalizedStatus,
-      });
-
-      return updatedOrder;
     },
 
     deleteOrderAsAdmin: async (orderId) => {

@@ -143,7 +143,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
     0,
   );
 
-  const refreshCart = () => {
+  const refreshCart = ({ suppressStockNotifications = false } = {}) => {
     if (!user) return Promise.resolve([]);
 
     setCartLoading(true);
@@ -155,7 +155,9 @@ export function CartProvider({ children, user, onSessionExpired }) {
     )
       .then((payload) => normalizeCartPayload(payload))
       .then((items) => {
-        notifyStockAdjustments(cart, items);
+        if (!suppressStockNotifications) {
+          notifyStockAdjustments(cart, items);
+        }
         setCart(items);
         clearStockMessageTimeout();
         setCartError("");
@@ -370,7 +372,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       "No se pudo confirmar la compra en efectivo.",
     );
 
-    await refreshCart();
+    await refreshCart({ suppressStockNotifications: true });
     return payload;
   };
 
@@ -400,7 +402,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       "No se pudo confirmar el pago de Mercado Pago.",
     );
 
-    await refreshCart();
+    await refreshCart({ suppressStockNotifications: true });
     return payload;
   };
 
