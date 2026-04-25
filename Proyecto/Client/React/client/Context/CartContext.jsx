@@ -22,6 +22,20 @@ export function CartProvider({ children, user, onSessionExpired }) {
   const normalizeCartPayload = (payload) =>
     Array.isArray(payload) ? payload : [];
 
+  const getSafeCartItems = (items) =>
+    normalizeCartPayload(items).filter(
+      (item) =>
+        Boolean(item) &&
+        ((item.id !== null &&
+          item.id !== undefined &&
+          item.id !== "" &&
+          item.id !== "undefined") ||
+          (item.product_id !== null &&
+            item.product_id !== undefined &&
+            item.product_id !== "" &&
+            item.product_id !== "undefined")),
+    );
+
   const parseJsonResponse = async (res) => {
     try {
       return await res.json();
@@ -123,7 +137,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       {},
       "No se pudo cargar el carrito.",
     )
-      .then((payload) => normalizeCartPayload(payload))
+      .then((payload) => getSafeCartItems(payload))
       .then(setCart)
       .catch((err) => {
         console.error(err);
@@ -137,7 +151,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       });
   }, [user, API_BASE_URL, onSessionExpired, warning]);
 
-  const safeCart = Array.isArray(cart) ? cart : [];
+  const safeCart = getSafeCartItems(cart);
+  const cartCount = safeCart.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
   const total = safeCart.reduce(
     (acc, item) => acc + Number(item.price) * Number(item.quantity),
     0,
@@ -153,7 +168,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       {},
       "No se pudo actualizar el carrito.",
     )
-      .then((payload) => normalizeCartPayload(payload))
+      .then((payload) => getSafeCartItems(payload))
       .then((items) => {
         if (!suppressStockNotifications) {
           notifyStockAdjustments(cart, items);
@@ -248,22 +263,56 @@ export function CartProvider({ children, user, onSessionExpired }) {
   };
 
   const removeFromCart = (cartItemId) => {
+    const cartItemIdAsString = String(cartItemId);
     setIsMutatingCart(true);
     setCartError("");
+    setCart((previousCart) => {
+      const nextCart = getSafeCartItems(previousCart).filter(
+        (item) => String(item?.id) !== cartItemIdAsString,
+      );
+      console.log("[cart] item eliminado (optimista):", cartItemId);
+      console.log("[cart] estado local post-eliminación:", nextCart);
+      return nextCart;
+    });
 
     requestJson(
       `${API_BASE_URL}/cart/${cartItemId}`,
       { method: "DELETE" },
       "No se pudo eliminar el producto del carrito.",
     )
-      .then(refreshCart)
-      .then(() => {
+      .then((payload) => {
+        console.log("[cart] respuesta backend eliminar:", payload);
+        return payload;
+      })
+      .then(async () => {
+        await refreshCart({ suppressStockNotifications: true });
         clearStockMessageTimeout();
         setCartError("");
         success("Producto eliminado del carrito.");
       })
       .catch((err) => {
         console.error(err);
+        const backendMessage = String(err?.message || "").toLowerCase();
+        const isIdempotentNotFound =
+          err?.status === 404 || backendMessage.includes("item no encontrado");
+
+        if (isIdempotentNotFound) {
+          setCart((previousCart) => {
+            const nextCart = getSafeCartItems(previousCart).filter(
+              (item) => String(item?.id) !== cartItemIdAsString,
+            );
+            console.log(
+              "[cart] backend indicó item inexistente; tratado como éxito idempotente:",
+              cartItemId,
+            );
+            console.log("[cart] estado local post-eliminación idempotente:", nextCart);
+            return nextCart;
+          });
+          clearStockMessageTimeout();
+          setCartError("");
+          return;
+        }
+
         if (err.message !== SESSION_EXPIRED_MESSAGE) {
           const message =
             err.message || "No se pudo eliminar el producto del carrito.";
@@ -285,8 +334,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       { method: "PATCH" },
       "No se pudo actualizar la cantidad del producto.",
     )
-      .then(refreshCart)
-      .then(() => {
+      .then(async () => {
+        await refreshCart({ suppressStockNotifications: true });
         clearStockMessageTimeout();
         setCartError("");
         info("Cantidad actualizada.");
@@ -419,6 +468,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
     <CartContext.Provider
       value={{
         cart,
+        cartCount,
         total,
         cartLoading,
         cartError,
