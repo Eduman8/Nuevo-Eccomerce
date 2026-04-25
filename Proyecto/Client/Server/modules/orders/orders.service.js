@@ -189,6 +189,14 @@ const assertValidAdminOrderTransition = ({ currentStatus, nextStatus }) => {
 };
 
 const normalizeOrderStatus = (status) => String(status || "").trim().toLowerCase();
+const isValidAbsoluteHttpUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || ""));
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 
 const createOrdersService = ({
   ordersRepository,
@@ -456,6 +464,24 @@ const createOrdersService = ({
           message: "BACKEND_BASE_URL no está configurado",
         };
       }
+      if (!isValidAbsoluteHttpUrl(BACKEND_BASE_URL)) {
+        throw {
+          status: 500,
+          message: "BACKEND_BASE_URL debe ser una URL absoluta válida",
+        };
+      }
+      if (!FRONTEND_BASE_URL) {
+        throw {
+          status: 500,
+          message: "FRONTEND_BASE_URL no está configurado",
+        };
+      }
+      if (!isValidAbsoluteHttpUrl(FRONTEND_BASE_URL)) {
+        throw {
+          status: 500,
+          message: "FRONTEND_BASE_URL debe ser una URL absoluta válida",
+        };
+      }
 
       const order = await ordersRepository.getOrderById(orderId);
 
@@ -491,31 +517,44 @@ const createOrdersService = ({
       const successBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=success&order_id=${order.id}`;
       const pendingBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=pending&order_id=${order.id}`;
       const failureBackUrl = `${FRONTEND_BASE_URL}/checkout/result?payment_status=failure&order_id=${order.id}`;
-      if (!FRONTEND_BASE_URL) {
+      const preferenceItems = [
+        ...orderItems.map((item) => ({
+          title: String(item.name || "").trim(),
+          quantity: Number(item.quantity),
+          unit_price: Number(item.price),
+          currency_id: "ARS",
+        })),
+        {
+          title:
+            order.shipping_method === "home_delivery"
+              ? "Envío a domicilio"
+              : "Retiro en local",
+          quantity: 1,
+          unit_price: Number(order.shipping_cost || 0),
+          currency_id: "ARS",
+        },
+      ];
+
+      const invalidItem = preferenceItems.find(
+        (item) =>
+          !item.title ||
+          !Number.isFinite(item.quantity) ||
+          item.quantity <= 0 ||
+          !Number.isFinite(item.unit_price) ||
+          item.unit_price < 0 ||
+          item.currency_id !== "ARS",
+      );
+
+      if (invalidItem) {
         throw {
           status: 500,
-          message: "FRONTEND_BASE_URL no está configurado",
+          message: "Datos inválidos al construir items para Mercado Pago",
+          details: invalidItem,
         };
       }
 
       const preferenceBody = {
-        items: [
-          ...orderItems.map((item) => ({
-            title: item.name,
-            quantity: Number(item.quantity),
-            unit_price: Number(item.price),
-            currency_id: "ARS",
-          })),
-          {
-            title:
-              order.shipping_method === "home_delivery"
-                ? "Envío a domicilio"
-                : "Retiro en local",
-            quantity: 1,
-            unit_price: Number(order.shipping_cost || 0),
-            currency_id: "ARS",
-          },
-        ],
+        items: preferenceItems,
         external_reference: externalReference,
         back_urls: {
           success: successBackUrl,
@@ -525,9 +564,35 @@ const createOrdersService = ({
         notification_url: `${BACKEND_BASE_URL}/api/payments/mercadopago/webhook`,
       };
 
+      console.log("[Mercado Pago] preference.create payload", {
+        orderId: order.id,
+        userId: String(userId),
+        preferenceData: preferenceBody,
+      });
+
       const preferenceResult = await preference.create({
         body: preferenceBody,
       });
+
+      console.log("[Mercado Pago] preference.create response", {
+        orderId: order.id,
+        preferenceId: preferenceResult.id,
+        init_point: preferenceResult.init_point,
+        sandbox_init_point: preferenceResult.sandbox_init_point,
+      });
+
+      const isTestToken = String(MP_ACCESS_TOKEN || "").startsWith("TEST-");
+      const checkoutUrl = isTestToken
+        ? preferenceResult.sandbox_init_point || preferenceResult.init_point
+        : preferenceResult.init_point || preferenceResult.sandbox_init_point;
+
+      if (!checkoutUrl) {
+        throw {
+          status: 500,
+          message:
+            "Mercado Pago no devolvió una URL de checkout válida (init_point/sandbox_init_point).",
+        };
+      }
 
       await ordersRepository.updateOrderPreferenceId({
         preferenceId: preferenceResult.id,
@@ -536,9 +601,8 @@ const createOrdersService = ({
 
       return {
         orderId: order.id,
-        init_point: preferenceResult.init_point,
-        sandbox_init_point: preferenceResult.sandbox_init_point,
         preference_id: preferenceResult.id,
+        checkout_url: checkoutUrl,
       };
     },
 
@@ -604,6 +668,7 @@ const createOrdersService = ({
           order,
           breakdown,
           adjustments,
+          checkout_url: preference.checkout_url,
           preference,
         };
       } catch (err) {
