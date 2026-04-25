@@ -198,7 +198,19 @@ const createOrdersService = ({
   BACKEND_BASE_URL = process.env.BACKEND_BASE_URL,
   confirmMercadoPagoPayment,
   finalizeOrderWithStockValidation,
+  notificationService,
 }) => {
+  const mapOrderNotificationContext = (orderContext) =>
+    orderContext
+      ? {
+          orderId: orderContext.order_id,
+          status: orderContext.status,
+          total: orderContext.total,
+          paymentMethod: orderContext.payment_method,
+          buyerName: orderContext.buyer_name,
+          buyerEmail: orderContext.buyer_email,
+        }
+      : null;
   const validateCheckoutInput = ({ shippingAddress, shippingMethod, paymentMethod }) => {
     if (
       !shippingAddress ||
@@ -572,6 +584,16 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
+        const orderContext = await ordersRepository.getOrderNotificationContextById(
+          order.id,
+        );
+        const notificationOrder = mapOrderNotificationContext(orderContext);
+        if (notificationOrder) {
+          await notificationService?.notifyOrderCreatedForAdmin({
+            order: notificationOrder,
+          });
+        }
+
         const preference = await this.createCheckoutProPreference(order.id, userId);
 
         return {
@@ -705,6 +727,20 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
+        const orderContext = await ordersRepository.getOrderNotificationContextById(
+          order.id,
+        );
+        const notificationOrder = mapOrderNotificationContext(orderContext);
+
+        if (notificationOrder) {
+          await notificationService?.notifyOrderCreatedForAdmin({
+            order: notificationOrder,
+          });
+          await notificationService?.notifyCashPendingForCustomer({
+            order: notificationOrder,
+          });
+        }
+
         return {
           message: "Orden creada en efectivo. Pendiente de confirmación.",
           orderId: order.id,
@@ -776,6 +812,19 @@ const createOrdersService = ({
         });
 
         await client.query("COMMIT");
+
+        if (confirmation.paid && !confirmation.alreadyProcessed) {
+          const orderContext =
+            await ordersRepository.getOrderNotificationContextById(orderId);
+          const notificationOrder = mapOrderNotificationContext(orderContext);
+
+          if (notificationOrder) {
+            await notificationService?.notifyMercadoPagoApprovedForCustomer({
+              order: notificationOrder,
+              paymentId: confirmation.paymentId,
+            });
+          }
+        }
 
         return {
           message: confirmation.alreadyProcessed

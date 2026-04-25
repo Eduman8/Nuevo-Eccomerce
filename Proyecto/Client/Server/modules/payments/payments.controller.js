@@ -7,8 +7,40 @@ const mercadoPagoWebhook =
     extractMercadoPagoTopic,
     extractMercadoPagoPaymentId,
     confirmMercadoPagoPayment,
+    notificationService,
   ) =>
   async (req, res) => {
+    const getOrderNotificationContext = async (orderId) => {
+      const result = await pool.query(
+        `
+        SELECT
+          o.id AS order_id,
+          o.status,
+          o.total,
+          o.payment_method,
+          u.name AS buyer_name,
+          u.email AS buyer_email
+        FROM orders o
+        JOIN users u ON u.id = o.user_id
+        WHERE o.id = $1
+        LIMIT 1
+        `,
+        [orderId],
+      );
+
+      const row = result.rows[0];
+      if (!row) return null;
+
+      return {
+        orderId: row.order_id,
+        status: row.status,
+        total: row.total,
+        paymentMethod: row.payment_method,
+        buyerName: row.buyer_name,
+        buyerEmail: row.buyer_email,
+      };
+    };
+
     if (
       !mercadopagoClient ||
       !hasValidMercadoPagoTokenFormat(MP_ACCESS_TOKEN)
@@ -49,6 +81,19 @@ const mercadoPagoWebhook =
       });
 
       await client.query("COMMIT");
+
+      if (confirmation.paid && !confirmation.alreadyProcessed) {
+        const notificationOrder = await getOrderNotificationContext(
+          confirmation.orderId,
+        );
+
+        if (notificationOrder) {
+          await notificationService?.notifyMercadoPagoApprovedForCustomer({
+            order: notificationOrder,
+            paymentId: confirmation.paymentId,
+          });
+        }
+      }
 
       console.log("Webhook procesado correctamente", {
         paymentId,

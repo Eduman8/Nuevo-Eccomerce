@@ -13,6 +13,9 @@ const createAuthRouter = require("./modules/auth/auth.routes");
 const createCartRouter = require("./modules/cart/cart.routes");
 const createOrdersRouter = require("./modules/orders/orders.routes");
 const createPaymentsRouter = require("./modules/payments/payments.routes");
+const createEmailService = require("./modules/notifications/email.service");
+const createNotificationService = require("./modules/notifications/notification.service");
+const createResendClient = require("./modules/notifications/resend.client");
 
 const createOrdersWorkflow = require("./modules/orders/orders.workflow");
 const ensureOrderSchema = require("./modules/orders/orders.schema");
@@ -34,6 +37,9 @@ const PORT = env.PORT;
 const FRONTEND_BASE_URL = env.FRONTEND_BASE_URL;
 const BACKEND_BASE_URL = env.BACKEND_BASE_URL;
 const ADMIN_EMAILS = env.ADMIN_EMAILS || [];
+const RESEND_API_KEY = env.RESEND_API_KEY;
+const EMAIL_FROM = env.EMAIL_FROM;
+const EMAIL_ADMIN_TO = env.EMAIL_ADMIN_TO || [];
 
 const isAdminEmail = (email) => {
   if (!email) return false;
@@ -43,6 +49,17 @@ const isAdminEmail = (email) => {
 const mercadopagoClient = MP_ACCESS_TOKEN
   ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN })
   : null;
+const resendClient = createResendClient({ apiKey: RESEND_API_KEY });
+
+const emailService = createEmailService({
+  resendClient,
+  fromEmail: EMAIL_FROM,
+  adminRecipients: EMAIL_ADMIN_TO,
+});
+
+const notificationService = createNotificationService({
+  emailService,
+});
 
 const { finalizeOrderWithStockValidation, confirmMercadoPagoPayment } =
   createOrdersWorkflow({
@@ -63,6 +80,7 @@ app.use(
     BACKEND_BASE_URL,
     confirmMercadoPagoPayment,
     finalizeOrderWithStockValidation,
+    notificationService,
   }),
 );
 app.use(
@@ -77,6 +95,7 @@ app.use(
     extractMercadoPagoTopic,
     extractMercadoPagoPaymentId,
     confirmMercadoPagoPayment,
+    notificationService,
   }),
 );
 

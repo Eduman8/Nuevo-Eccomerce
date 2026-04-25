@@ -13,9 +13,13 @@ cp .env.example .env
 
 ```env
 MP_ACCESS_TOKEN=APP_USR-tu-token-acá
+RESEND_API_KEY=re_tu_api_key
+EMAIL_FROM=onboarding@resend.dev
+EMAIL_ADMIN_TO=ventas@tu-tienda.com,owner@tu-tienda.com
 ```
 
 > El token de prueba suele empezar con `TEST-` y el de producción con `APP_USR-`.
+> Para emails transaccionales se usa Resend y `EMAIL_FROM` debe estar verificado en tu cuenta.
 
 ## 2) ¿Dónde obtener el access token?
 

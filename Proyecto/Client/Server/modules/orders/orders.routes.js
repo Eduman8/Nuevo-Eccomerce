@@ -14,6 +14,7 @@ const createOrdersRouter = ({
   finalizeOrderWithStockValidation,
   FRONTEND_BASE_URL,
   BACKEND_BASE_URL,
+  notificationService,
 }) => {
   const router = express.Router();
   const ordersRepository = createOrdersRepository(pool);
@@ -26,6 +27,7 @@ const createOrdersRouter = ({
     BACKEND_BASE_URL,
     confirmMercadoPagoPayment,
     finalizeOrderWithStockValidation,
+    notificationService,
   });
 
   const ordersController = createOrdersController(ordersService);

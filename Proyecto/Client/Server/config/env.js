@@ -13,6 +13,14 @@ const env = {
   PORT: Number(process.env.PORT || 3000),
   FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL || "http://localhost:5173",
   BACKEND_BASE_URL: process.env.BACKEND_BASE_URL || "http://localhost:3000",
+  RESEND_API_KEY: process.env.RESEND_API_KEY
+    ? String(process.env.RESEND_API_KEY).trim()
+    : "",
+  EMAIL_FROM: process.env.EMAIL_FROM || "",
+  EMAIL_ADMIN_TO: (process.env.EMAIL_ADMIN_TO || process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
   ADMIN_EMAILS: (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
