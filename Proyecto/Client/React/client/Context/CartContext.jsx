@@ -346,7 +346,7 @@ export function CartProvider({ children, user, onSessionExpired }) {
       "No se pudo iniciar el pago con Mercado Pago.",
     );
 
-    return payload.preference;
+    return payload;
   };
 
   const confirmCashOrder = async ({

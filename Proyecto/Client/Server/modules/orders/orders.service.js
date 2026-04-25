@@ -670,6 +670,7 @@ const createOrdersService = ({
           order,
           breakdown,
           adjustments,
+          checkout_url: preference.checkout_url,
           preference,
         };
       } catch (err) {

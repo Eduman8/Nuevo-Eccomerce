@@ -189,17 +189,26 @@ function CheckoutPage({ user }) {
       setLoadingAction("start_mp");
       setNotice({ type: "info", message: "Preparando el pago. Serás redirigido a Mercado Pago..." });
 
-      const preference = await createMercadoPagoPreference({
+      const data = await createMercadoPagoPreference({
         shippingAddress: address,
         shippingMethod,
         paymentMethod,
       });
 
-      if (!preference?.init_point) {
+      const checkoutUrl =
+        data?.checkout_url ||
+        data?.preference?.checkout_url;
+
+      console.log("[Checkout] Mercado Pago response", {
+        data,
+        checkoutUrl,
+      });
+
+      if (!checkoutUrl) {
         throw new Error("No se recibió el link de pago de Mercado Pago.");
       }
 
-      window.location.href = preference.init_point;
+      window.location.href = checkoutUrl;
     } catch (err) {
       setNotice({ type: "", message: "" });
       setError(err.message || "Ocurrió un error inesperado al iniciar el pago.");
