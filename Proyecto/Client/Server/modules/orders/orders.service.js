@@ -601,6 +601,8 @@ const createOrdersService = ({
 
       return {
         orderId: order.id,
+        init_point: checkoutUrl,
+        sandbox_init_point: preferenceResult.sandbox_init_point,
         preference_id: preferenceResult.id,
         checkout_url: checkoutUrl,
       };
