@@ -34,15 +34,17 @@ function Home() {
             src="https://res.cloudinary.com/dbkfkpjjl/image/upload/v1774051224/Captura_de_pantalla_2026-03-20_210005_wb3yvz.png"
             alt="Mate premium HARTA"
           />
-          <span className="hero__floating-badge hero__floating-badge-top">+500 clientes</span>
-          <span className="hero__floating-badge hero__floating-badge-bottom">Envíos 24hs</span>
+          {/* <span className="hero__floating-badge hero__floating-badge-top">+500 clientes</span>
+          <span className="hero__floating-badge hero__floating-badge-bottom">Envíos 24hs</span> */}
         </div>
       </section>
 
       <header className="products-header" id="categorias">
         <div className="products-header__content">
           <h2>Comprá por categoría</h2>
-          <p>Elegí tu estilo y encontrá productos listos para sumar al carrito.</p>
+          <p>
+            Elegí tu estilo y encontrá productos listos para sumar al carrito.
+          </p>
         </div>
       </header>
 

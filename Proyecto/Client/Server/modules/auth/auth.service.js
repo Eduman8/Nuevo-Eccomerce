@@ -82,7 +82,7 @@ const createAuthService = ({ authRepository, isAdminEmail }) => {
           role: user.role,
         },
         process.env.JWT_SECRET,
-        { expiresIn: "2h" },
+        { expiresIn: "7d" },
       );
 
       return {
