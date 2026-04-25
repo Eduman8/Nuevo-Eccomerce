@@ -334,8 +334,8 @@ export function CartProvider({ children, user, onSessionExpired }) {
       { method: "PATCH" },
       "No se pudo actualizar la cantidad del producto.",
     )
-      .then(refreshCart)
-      .then(() => {
+      .then(async () => {
+        await refreshCart({ suppressStockNotifications: true });
         clearStockMessageTimeout();
         setCartError("");
         info("Cantidad actualizada.");
