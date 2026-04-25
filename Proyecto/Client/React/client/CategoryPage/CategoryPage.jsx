@@ -8,8 +8,10 @@ const API_BASE_URL = "http://localhost:3000/api";
 function CategoryPage({ addToCart }) {
   const { category } = useParams();
   const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     fetch(`${API_BASE_URL}/products`)
       .then((res) => res.json())
       .then((data) => {
@@ -20,6 +22,9 @@ function CategoryPage({ addToCart }) {
       })
       .catch((err) => {
         console.error("Error cargando productos:", err);
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
   }, [category]);
 
@@ -27,12 +32,19 @@ function CategoryPage({ addToCart }) {
     <section className="category-products">
       <header className="category-products__header">
         <h2>{category}</h2>
+        <p>Encontrá piezas seleccionadas para sumar a tu carrito.</p>
       </header>
 
       <div className="category-products__grid">
-        {products.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
+        {isLoading ? (
+          <p className="category-products__loading">Cargando productos...</p>
+        ) : products.length > 0 ? (
+          products.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))
+        ) : (
+          <p className="category-products__empty">No hay productos disponibles por ahora.</p>
+        )}
       </div>
     </section>
   );

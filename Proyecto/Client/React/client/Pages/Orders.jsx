@@ -90,8 +90,11 @@ function Orders({ user, onSessionExpired }) {
   }, [user, onSessionExpired, warning, notifyError]);
 
   return (
-    <div className="order-card">
-      <h1>Mis pedidos</h1>
+    <section className="orders-page">
+      <header className="orders-header">
+        <h1>Mis pedidos</h1>
+        <p>Revisá el estado de tus compras, envío y método de pago.</p>
+      </header>
 
       {loading && <p className="order-state">Cargando pedidos...</p>}
 
@@ -104,41 +107,49 @@ function Orders({ user, onSessionExpired }) {
       {!loading && !loadError && orders.length > 0 && (
         <div className="order-list">
           {orders.map((order) => (
-            <div key={order.id} className="order-item">
-              <p>
-                <strong>Pedido #{order.id}</strong>
-              </p>
-              <p>Total: ${order.total}</p>
-              <p>Estado: {getOrderStatusLabel(order.status)}</p>
-              <p>Método de envío: {getShippingMethodLabel(order.shippingMethod)}</p>
-              <p>Costo de envío: ${order.shippingCost}</p>
-              <p>Método de pago: {getPaymentMethodLabel(order.paymentMethod)}</p>
+            <article key={order.id} className="order-item">
+              <div className="order-item__top">
+                <p className="order-id">
+                  <strong>Pedido #{order.id}</strong>
+                </p>
+                <span className={`order-status-pill order-status-pill-${String(order.status || "").toLowerCase()}`}>
+                  {getOrderStatusLabel(order.status)}
+                </span>
+              </div>
+
+              <div className="order-meta">
+                <p><span>Total</span><strong>${Number(order.total || 0).toFixed(2)}</strong></p>
+                <p><span>Envío</span><strong>${Number(order.shippingCost || 0).toFixed(2)}</strong></p>
+                <p><span>Método envío</span><strong>{getShippingMethodLabel(order.shippingMethod)}</strong></p>
+                <p><span>Método pago</span><strong>{getPaymentMethodLabel(order.paymentMethod)}</strong></p>
+              </div>
 
               {order.shippingAddress &&
                 typeof order.shippingAddress === "object" && (
-                  <p>
+                  <p className="order-address">
                     Dirección: {order.shippingAddress.street},{" "}
                     {order.shippingAddress.city}
                   </p>
                 )}
 
               {order.items.length > 0 && (
-                <div>
-                  <p>
+                <div className="order-products">
+                  <p className="order-products-title">
                     <strong>Productos:</strong>
                   </p>
                   {order.items.map((item, index) => (
-                    <p key={index}>
-                      {item.name} - {item.quantity} x ${item.price}
+                    <p key={index} className="order-product-line">
+                      <span>{item.name}</span>
+                      <span>{item.quantity} x ${item.price}</span>
                     </p>
                   ))}
                 </div>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

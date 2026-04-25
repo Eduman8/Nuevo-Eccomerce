@@ -5,7 +5,10 @@ function CategoryCard({ title, image, category }) {
   return (
     <Link to={`/category/${category}`} className="category-card">
       <img src={image} alt={title} />
-      <h3>{title}</h3>
+      <div className="category-card__body">
+        <h3>{title}</h3>
+        <p>Ver colección</p>
+      </div>
     </Link>
   );
 }

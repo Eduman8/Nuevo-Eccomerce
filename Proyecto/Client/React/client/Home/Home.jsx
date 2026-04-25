@@ -4,10 +4,30 @@ import "./Home.css";
 function Home() {
   return (
     <div className="container">
-      <header className="products-header">
+      <section className="hero">
+        <div className="hero__content">
+          <p className="hero__kicker">Ecommerce oficial HARTA</p>
+          <h1>Diseños premium para tu mesa diaria</h1>
+          <p className="hero__subtitle">
+            Descubrí tazas, tazones y mates con estética moderna, calidad real y
+            compra simple en minutos.
+          </p>
+          <a className="hero__cta" href="#categorias">
+            Comprar ahora
+          </a>
+        </div>
+
+        <div className="hero__panel">
+          <p>Envíos a todo el país</p>
+          <p>Pagá seguro con Mercado Pago</p>
+          <p>Stock actualizado en tiempo real</p>
+        </div>
+      </section>
+
+      <header className="products-header" id="categorias">
         <div className="products-header__content">
-          <h1>Nuestros Productos</h1>
-          <p>Explorá nuestra colección disponible</p>
+          <h2>Comprá por categoría</h2>
+          <p>Elegí tu estilo y encontrá productos listos para sumar al carrito.</p>
         </div>
       </header>
 
