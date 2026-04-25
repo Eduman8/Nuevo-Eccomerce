@@ -1,18 +1,99 @@
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  padding: 14px;
-  border-radius: 16px;
-  transition: 0.25s;
+  padding: 12px;
+  border-radius: 18px;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  cursor: pointer;
+}
+.card:hover {
+  transform: translateY(-4px) scale(1.01);
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
   box-shadow: var(--shadow);
 }
-.card:hover { transform: translateY(-5px); border-color: var(--primary); }
-.card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 12px; }
-.card h3 { margin-top: 12px; color: var(--text); }
-.card p { color: var(--text-muted); margin-top: 4px; }
-.card button {
-  margin-top: 12px; width: 100%; padding: 10px; background: linear-gradient(135deg, var(--accent), var(--primary));
-  border: none; border-radius: 10px; cursor: pointer; color: var(--on-primary); font-weight: 700;
+.card img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.card__body {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.card h3 {
+  color: var(--text);
+  line-height: 1.28;
+  margin: 0;
+  font-size: clamp(1rem, 1.15vw, 1.08rem);
+  min-height: 2.56em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card__price {
+  color: var(--text);
+  font-size: clamp(1.1rem, 1.3vw, 1.28rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 2px 0 0;
+}
+
+.stock-pill {
+  width: fit-content;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.28rem 0.6rem;
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 45%, var(--border));
+  background: color-mix(in srgb, var(--success) 14%, var(--card));
+}
+
+.stock-pill--off {
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+}
+
+.card__buy-btn {
+  margin-top: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--on-primary);
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.card__buy-btn:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.card__buy-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.card__buy-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.card__buy-btn:active {
+  transform: translateY(1px);
 }
 
 @media (max-width: 640px) {
@@ -24,7 +105,7 @@
     font-size: 1rem;
   }
 
-  .card button {
+  .card__buy-btn {
     padding: 11px;
   }
 }

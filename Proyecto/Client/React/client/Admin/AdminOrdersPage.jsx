@@ -164,7 +164,10 @@ function AdminOrdersPage({ onSessionExpired }) {
 
   return (
     <section className="admin-orders-page">
-      <h1>Pedidos (Admin)</h1>
+      <header className="admin-orders-header">
+        <h1>Pedidos (Admin)</h1>
+        <p>Supervisá estado, envío y datos de compra sin afectar la lógica operativa.</p>
+      </header>
 
       {loading && <p className="admin-orders-state">Cargando pedidos...</p>}
 

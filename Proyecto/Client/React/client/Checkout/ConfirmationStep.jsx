@@ -9,7 +9,7 @@ function ConfirmationStep({ orderSummary, onConfirmCash, loading }) {
         Total final: <strong>${orderSummary?.breakdown?.total?.toFixed(2)}</strong>
       </p>
 
-      <button onClick={onConfirmCash} disabled={loading}>
+      <button className="checkout-btn-primary" onClick={onConfirmCash} disabled={loading}>
         {loading ? "Confirmando pedido..." : "Confirmar pedido"}
       </button>
     </section>

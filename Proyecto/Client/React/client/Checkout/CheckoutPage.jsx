@@ -34,6 +34,7 @@ function CheckoutPage({ user }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [notice, setNotice] = useState({ type: "", message: "" });
+  const [paymentResult, setPaymentResult] = useState({ type: "", title: "", message: "" });
   const [loadingAction, setLoadingAction] = useState("");
   const [mpConfirmed, setMpConfirmed] = useState(false);
 
@@ -55,6 +56,11 @@ function CheckoutPage({ user }) {
       normalizedStatus === "success" || normalizedStatus === "approved";
 
     if (normalizedStatus === "pending" || normalizedStatus === "in_process") {
+      setPaymentResult({
+        type: "pending",
+        title: "Pago pendiente",
+        message: "Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.",
+      });
       setNotice({
         type: "warning",
         message: "Tu pago está pendiente de acreditación. Te avisaremos cuando se confirme.",
@@ -69,6 +75,11 @@ function CheckoutPage({ user }) {
       normalizedStatus === "rejected" ||
       normalizedStatus === "cancelled"
     ) {
+      setPaymentResult({
+        type: "failure",
+        title: "Pago rechazado",
+        message: "El pago fue rechazado o cancelado. Podés intentarlo nuevamente.",
+      });
       setError("El pago fue rechazado o cancelado. Podés intentarlo nuevamente.");
       setSuccess("");
       setNotice({ type: "", message: "" });
@@ -100,6 +111,11 @@ function CheckoutPage({ user }) {
           paymentId,
         });
 
+        setPaymentResult({
+          type: "success",
+          title: "Pago aprobado",
+          message: `Tu orden #${result.orderId} quedó confirmada correctamente.`,
+        });
         setSuccess(`Pago aprobado y orden confirmada (#${result.orderId}).`);
         setNotice({ type: "", message: "" });
         setMpConfirmed(true);
@@ -258,38 +274,76 @@ function CheckoutPage({ user }) {
 
   return (
     <div className="checkout-page">
-      <h1>Finalizar compra</h1>
-      <p>Subtotal carrito: ${total.toFixed(2)}</p>
-      <p>Envío estimado: ${shippingCost.toFixed(2)}</p>
-      {paymentMethod === "cash" && <p className="checkout-notice checkout-notice-info">Pago a acordar con el vendedor</p>}
+      <header className="checkout-header">
+        <h1>Finalizar compra</h1>
+        <p>Completá los pasos para confirmar tu pedido de forma segura.</p>
+      </header>
 
-      <AddressStep address={address} onChange={updateAddress} />
-      <ShippingStep
-        shippingMethod={shippingMethod}
-        onChange={setShippingMethod}
-        cashSelected={paymentMethod === "cash"}
-      />
-      <PaymentStep
-        paymentMethod={paymentMethod}
-        onMethodChange={setPaymentMethod}
-        disabled={isProcessing}
-      />
-
-      {!orderSummary ? (
-        <button onClick={handleCreateOrder} disabled={isProcessing}>
-          {loadingAction === "create_order" ? "Validando stock..." : "Validar resumen"}
-        </button>
-      ) : paymentMethod === "mercadopago" ? (
-        <button onClick={handleMercadoPagoCheckout} disabled={isProcessing}>
-          {loadingAction === "start_mp" ? "Redirigiendo a Mercado Pago..." : "Pagar con Mercado Pago"}
-        </button>
-      ) : (
-        <ConfirmationStep
-          orderSummary={orderSummary}
-          onConfirmCash={handleConfirmCashOrder}
-          loading={isProcessing}
-        />
+      {paymentResult.type && (
+        <section className={`checkout-result checkout-result-${paymentResult.type}`}>
+          <h2>{paymentResult.title}</h2>
+          <p>{paymentResult.message}</p>
+          <div className="checkout-result-actions">
+            <button type="button" onClick={() => navigate("/orders")}>
+              Ver pedidos
+            </button>
+            <button type="button" className="checkout-btn-secondary" onClick={() => navigate("/")}>
+              Volver a tienda
+            </button>
+          </div>
+        </section>
       )}
+
+      <div className="checkout-layout">
+        <section className="checkout-main">
+          <AddressStep address={address} onChange={updateAddress} />
+          <ShippingStep
+            shippingMethod={shippingMethod}
+            onChange={setShippingMethod}
+            cashSelected={paymentMethod === "cash"}
+          />
+          <PaymentStep
+            paymentMethod={paymentMethod}
+            onMethodChange={setPaymentMethod}
+            disabled={isProcessing}
+          />
+
+          {!orderSummary ? (
+            <button className="checkout-btn-primary" onClick={handleCreateOrder} disabled={isProcessing}>
+              {loadingAction === "create_order" ? "Validando stock..." : "Validar resumen"}
+            </button>
+          ) : paymentMethod === "mercadopago" ? (
+            <button className="checkout-btn-primary" onClick={handleMercadoPagoCheckout} disabled={isProcessing}>
+              {loadingAction === "start_mp" ? "Redirigiendo a Mercado Pago..." : "Pagar con Mercado Pago"}
+            </button>
+          ) : (
+            <ConfirmationStep
+              orderSummary={orderSummary}
+              onConfirmCash={handleConfirmCashOrder}
+              loading={isProcessing}
+            />
+          )}
+        </section>
+
+        <aside className="checkout-summary">
+          <h2>Resumen</h2>
+          <p>
+            <span>Subtotal</span>
+            <strong>${total.toFixed(2)}</strong>
+          </p>
+          <p>
+            <span>Envío estimado</span>
+            <strong>${shippingCost.toFixed(2)}</strong>
+          </p>
+          <p className="checkout-summary-total">
+            <span>Total estimado</span>
+            <strong>${(total + shippingCost).toFixed(2)}</strong>
+          </p>
+          {paymentMethod === "cash" && (
+            <p className="checkout-notice checkout-notice-info">Pago a acordar con el vendedor</p>
+          )}
+        </aside>
+      </div>
 
       {notice.message && <p className={`checkout-notice checkout-notice-${notice.type}`}>{notice.message}</p>}
       {Array.isArray(orderSummary?.adjustments) && orderSummary.adjustments.length > 0 && (
