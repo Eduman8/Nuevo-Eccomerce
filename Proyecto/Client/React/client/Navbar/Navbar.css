@@ -30,6 +30,13 @@
   cursor: pointer;
 }
 
+.cart-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .login-btn,
 .checkout {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
@@ -53,7 +60,7 @@
   padding: 0 6px;
 }
 
-.cart-container,.auth { position: relative; }
+.auth { position: relative; }
 .user-box {
   display: flex;
   align-items: center;

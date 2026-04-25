@@ -5,16 +5,25 @@ import { useNavigate } from "react-router-dom";
 function Cart() {
   const navigate = useNavigate();
   const { cart, removeFromCart, total, checkout } = useCart();
+  const safeCartItems = (Array.isArray(cart) ? cart : [])
+    .filter(Boolean)
+    .filter(
+      (item) =>
+        item?.id !== null &&
+        item?.id !== undefined &&
+        item?.id !== "" &&
+        item?.id !== "undefined",
+    );
 
   return (
     <div className="cart">
       <h2>Carrito</h2>
 
-      {cart.length === 0 ? (
+      {safeCartItems.length === 0 ? (
         <p>Vacío</p>
       ) : (
         <>
-          {cart.map((item) => (
+          {safeCartItems.map((item) => (
             <div key={item.id} className="cart-item">
               <span>
                 {item.name} x{item.quantity}

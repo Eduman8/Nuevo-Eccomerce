@@ -16,6 +16,7 @@ function Navbar({ user, setUser }) {
 
   const {
     cart,
+    cartCount,
     total,
     cartLoading,
     cartError,
@@ -25,8 +26,16 @@ function Navbar({ user, setUser }) {
     checkout,
   } = useCart();
 
-  const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const hasCartStockConflict = cart.some(
+  const safeCartItems = (Array.isArray(cart) ? cart : [])
+    .filter(Boolean)
+    .filter(
+      (item) =>
+        item?.id !== null &&
+        item?.id !== undefined &&
+        item?.id !== "" &&
+        item?.id !== "undefined",
+    );
+  const hasCartStockConflict = safeCartItems.some(
     (item) =>
       Number(item.stock || 0) <= 0 ||
       Number(item.quantity) > Number(item.stock || 0),
@@ -103,7 +112,7 @@ function Navbar({ user, setUser }) {
           <div className="cart-container">
             <button className="cart-btn" onClick={() => setShowCart(!showCart)}>
               🛒
-              {itemCount > 0 && <span className="badge">{itemCount}</span>}
+              {cartCount > 0 && <span className="badge">{cartCount}</span>}
             </button>
           </div>
 
@@ -151,7 +160,7 @@ function Navbar({ user, setUser }) {
 
         {cartLoading ? (
           <p className="empty">Cargando carrito...</p>
-        ) : cart.length === 0 ? (
+        ) : safeCartItems.length === 0 ? (
           <>
             {cartError && <p className="cart-alert cart-alert-error">{cartError}</p>}
             <p className="empty">Tu carrito está vacío.</p>
@@ -162,7 +171,7 @@ function Navbar({ user, setUser }) {
             {isMutatingCart && <p className="cart-status">Actualizando carrito...</p>}
 
             <div className="cart-items">
-              {cart.map((item) => (
+              {safeCartItems.map((item) => (
                 <div key={item.id} className="cart-item">
                   <div>
                     <p>{item.name}</p>
