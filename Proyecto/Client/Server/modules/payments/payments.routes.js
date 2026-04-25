@@ -15,6 +15,7 @@ const createPaymentsRouter = ({
   extractMercadoPagoTopic,
   extractMercadoPagoPaymentId,
   confirmMercadoPagoPayment,
+  notificationService,
 }) => {
   const router = express.Router();
 
@@ -29,6 +30,7 @@ const createPaymentsRouter = ({
         extractMercadoPagoTopic,
         extractMercadoPagoPaymentId,
         confirmMercadoPagoPayment,
+        notificationService,
       ),
     ),
   );

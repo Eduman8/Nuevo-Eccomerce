@@ -74,6 +74,28 @@ const createOrdersRepository = (pool) => ({
     return orderResult.rows[0] || null;
   },
 
+  getOrderNotificationContextById: async (orderId, client = null) => {
+    const executor = client || pool;
+    const result = await executor.query(
+      `
+      SELECT
+        o.id AS order_id,
+        o.status,
+        o.total,
+        o.payment_method,
+        u.name AS buyer_name,
+        u.email AS buyer_email
+      FROM orders o
+      JOIN users u ON u.id = o.user_id
+      WHERE o.id = $1
+      LIMIT 1
+      `,
+      [orderId],
+    );
+
+    return result.rows[0] || null;
+  },
+
   getOrderByIdForUpdate: async (orderId, client) => {
     const result = await client.query(
       `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
