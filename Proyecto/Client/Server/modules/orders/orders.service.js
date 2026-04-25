@@ -390,7 +390,7 @@ const createOrdersService = ({
     }
   };
 
-  return {
+  const service = {
     createOrder: async (
       userId,
       { shippingAddress, shippingMethod, paymentMethod },
@@ -594,7 +594,10 @@ const createOrdersService = ({
           });
         }
 
-        const preference = await this.createCheckoutProPreference(order.id, userId);
+        const preference = await service.createCheckoutProPreference(
+          order.id,
+          userId,
+        );
 
         return {
           message: "Orden creada y lista para pagar con Mercado Pago",
@@ -1017,6 +1020,8 @@ const createOrdersService = ({
       }));
     },
   };
+
+  return service;
 };
 
 module.exports = createOrdersService;
