@@ -43,6 +43,8 @@ const validateAndBuildPayload = (input, fallback = {}) => {
 };
 
 const createCategoriesService = (categoriesRepository) => ({
+  getPublicCategories: async () => categoriesRepository.getActive(),
+
   getAdminCategories: async () => categoriesRepository.getAllForAdmin(),
 
   createCategory: async (input) => {

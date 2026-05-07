@@ -53,6 +53,23 @@ const normalizeCategory = (category) => {
   return normalized;
 };
 
+const normalizeOptionalCategory = (category) => {
+  const normalized = normalizeString(category);
+  return normalized ? normalized.toLowerCase() : "";
+};
+
+const normalizeCategoryId = (categoryId, fallbackCategoryId) => {
+  const value = categoryId ?? fallbackCategoryId;
+  if (value === undefined || value === null || value === "") return null;
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw { status: 400, payload: { error: "categoryId debe ser un entero positivo" } };
+  }
+
+  return parsed;
+};
+
 const normalizeActive = (active, fallback = true) => {
   if (active === undefined || active === null) return fallback;
   if (typeof active === "boolean") return active;
@@ -60,17 +77,44 @@ const normalizeActive = (active, fallback = true) => {
   throw { status: 400, payload: { error: "active debe ser boolean" } };
 };
 
-const validateAndBuildPayload = (input, fallback = {}, { requireImage = false } = {}) => {
+const validateAndBuildPayload = async (
+  input,
+  fallback = {},
+  { requireImage = false, productsRepository, allowInactiveCategory = false } = {},
+) => {
   const name = normalizeString(input.name ?? fallback.name);
   if (!name) {
     throw { status: 400, payload: { error: "name es obligatorio" } };
+  }
+
+  const categoryId = normalizeCategoryId(
+    input.categoryId ?? input.category_id,
+    fallback.category_id ?? fallback.categoryId,
+  );
+
+  let category = normalizeOptionalCategory(input.category ?? fallback.category);
+
+  if (categoryId) {
+    const categoryRecord = await productsRepository.getCategoryById(categoryId);
+    if (!categoryRecord) {
+      throw { status: 400, payload: { error: "categoryId no corresponde a una categoría existente" } };
+    }
+
+    if (!categoryRecord.active && !allowInactiveCategory) {
+      throw { status: 400, payload: { error: "La categoría seleccionada está inactiva" } };
+    }
+
+    category = normalizeCategory(categoryRecord.name);
+  } else {
+    category = normalizeCategory(category);
   }
 
   return {
     name,
     description: normalizeOptionalString(input.description ?? fallback.description),
     price: normalizePrice(input.price ?? fallback.price),
-    category: normalizeCategory(input.category ?? fallback.category),
+    category,
+    categoryId,
     image: normalizeImageUrl(input.image ?? input.imageUrl ?? fallback.image, {
       required: requireImage,
     }),
@@ -85,8 +129,9 @@ const createProductsService = (productsRepository) => ({
   getAdminProducts: async () => productsRepository.getAllForAdmin(),
 
   createProduct: async (input) => {
-    const payload = validateAndBuildPayload(input, { stock: 0, active: true }, {
+    const payload = await validateAndBuildPayload(input, { stock: 0, active: true }, {
       requireImage: true,
+      productsRepository,
     });
     return productsRepository.create(payload);
   },
@@ -97,8 +142,10 @@ const createProductsService = (productsRepository) => ({
       throw { status: 404, payload: { error: "Producto no encontrado" } };
     }
 
-    const payload = validateAndBuildPayload(input, existingProduct, {
+    const payload = await validateAndBuildPayload(input, existingProduct, {
       requireImage: true,
+      productsRepository,
+      allowInactiveCategory: true,
     });
     return productsRepository.updateById({ id, ...payload });
   },
@@ -118,6 +165,7 @@ const createProductsService = (productsRepository) => ({
         description: product.description,
         price: product.price,
         category: product.category,
+        categoryId: product.category_id,
         image: product.image,
         stock: product.stock,
         active: false,

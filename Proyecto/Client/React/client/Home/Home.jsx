@@ -1,7 +1,52 @@
+import { useEffect, useState } from "react";
 import CategoryCard from "../CategoryCard/CategoryCard";
 import "./Home.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+
 function Home() {
+  const [categories, setCategories] = useState([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoriesError, setCategoriesError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
+      setIsLoadingCategories(true);
+      setCategoriesError("");
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories`);
+        const payload = await response.json().catch(() => []);
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "No se pudieron cargar las categorías.");
+        }
+
+        if (isMounted) {
+          setCategories(Array.isArray(payload) ? payload : []);
+        }
+      } catch (error) {
+        console.error("Error cargando categorías:", error);
+        if (isMounted) {
+          setCategories([]);
+          setCategoriesError(error.message || "No se pudieron cargar las categorías.");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCategories(false);
+        }
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="container">
       <section className="hero">
@@ -48,25 +93,24 @@ function Home() {
         </div>
       </header>
 
-      <div className="grid">
-        <CategoryCard
-          title="Tazas"
-          category="tazas"
-          image="https://res.cloudinary.com/dbkfkpjjl/image/upload/v1774051006/Captura_de_pantalla_2026-03-20_205301_mirfrj.png"
-        />
-
-        <CategoryCard
-          title="Tazones"
-          category="tazones"
-          image="https://res.cloudinary.com/dbkfkpjjl/image/upload/v1774051187/Captura_de_pantalla_2026-03-20_205936_jlbff0.png"
-        />
-
-        <CategoryCard
-          title="Mates"
-          category="mates"
-          image="https://res.cloudinary.com/dbkfkpjjl/image/upload/v1774051224/Captura_de_pantalla_2026-03-20_210005_wb3yvz.png"
-        />
-      </div>
+      {isLoadingCategories ? (
+        <p className="categories-state">Cargando categorías...</p>
+      ) : categoriesError ? (
+        <p className="categories-state categories-state--error">{categoriesError}</p>
+      ) : categories.length === 0 ? (
+        <p className="categories-state">No hay categorías activas por ahora.</p>
+      ) : (
+        <div className="grid">
+          {categories.map((category) => (
+            <CategoryCard
+              key={category.id}
+              title={category.name}
+              category={category.id}
+              image={category.image_url}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

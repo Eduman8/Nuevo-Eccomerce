@@ -15,7 +15,7 @@ const initialForm = {
   name: "",
   description: "",
   price: "",
-  category: "",
+  categoryId: "",
   image: "",
   stock: "0",
   active: true,
@@ -34,11 +34,14 @@ function AdminProductsPage({ onSessionExpired }) {
   const [products, setProducts] = useState([]);
   const [draftsById, setDraftsById] = useState({});
   const [form, setForm] = useState(initialForm);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingById, setSavingById] = useState({});
   const [deletingById, setDeletingById] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [categoriesError, setCategoriesError] = useState("");
   const { success, warning, error: notifyError, info } = useNotification();
 
   const notifySessionExpired = () => {
@@ -52,6 +55,37 @@ function AdminProductsPage({ onSessionExpired }) {
       ...(includeJson ? { "Content-Type": "application/json" } : {}),
       ...headers,
     });
+
+  const loadCategories = async () => {
+    setLoadingCategories(true);
+    setCategoriesError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories/admin`, {
+        headers: withAdminAuth(),
+      });
+      const payload = await response.json().catch(() => []);
+
+      if (isUnauthorizedResponse(response)) {
+        notifySessionExpired();
+        setCategories([]);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudieron cargar las categorías.");
+      }
+
+      setCategories(Array.isArray(payload) ? payload : []);
+    } catch (error) {
+      console.error(error);
+      setCategories([]);
+      setCategoriesError(error.message || "No se pudieron cargar las categorías.");
+      notifyError(error.message || "No se pudieron cargar las categorías.");
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   const loadProducts = async () => {
     setLoading(true);
@@ -82,7 +116,7 @@ function AdminProductsPage({ onSessionExpired }) {
             name: product.name || "",
             description: product.description || "",
             price: String(product.price ?? ""),
-            category: product.category || "",
+            categoryId: String(product.category_id || ""),
             image: product.image || "",
             stock: String(product.stock ?? 0),
             active: Boolean(product.active),
@@ -101,6 +135,7 @@ function AdminProductsPage({ onSessionExpired }) {
   };
 
   useEffect(() => {
+    loadCategories();
     loadProducts();
   }, []);
 
@@ -133,6 +168,11 @@ function AdminProductsPage({ onSessionExpired }) {
 
     const normalizedImage = String(form.image || "").trim();
 
+    if (!form.categoryId) {
+      notifyError("Seleccioná una categoría para crear el producto.");
+      return;
+    }
+
     if (!normalizedImage) {
       notifyError("La imagen es obligatoria para crear un producto.");
       return;
@@ -149,7 +189,11 @@ function AdminProductsPage({ onSessionExpired }) {
       const response = await fetch(`${API_BASE_URL}/products/admin`, {
         method: "POST",
         headers: withAdminAuth({ includeJson: true }),
-        body: JSON.stringify({ ...form, image: normalizedImage }),
+        body: JSON.stringify({
+          ...form,
+          image: normalizedImage,
+          categoryId: form.categoryId,
+        }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -178,6 +222,11 @@ function AdminProductsPage({ onSessionExpired }) {
     const draft = draftsById[productId] || {};
     const normalizedImage = String(draft.image || "").trim();
 
+    if (!draft.categoryId) {
+      notifyError("Seleccioná una categoría para guardar el producto.");
+      return;
+    }
+
     if (!normalizedImage) {
       notifyError("La imagen no puede quedar vacía al editar el producto.");
       return;
@@ -194,7 +243,11 @@ function AdminProductsPage({ onSessionExpired }) {
       const response = await fetch(`${API_BASE_URL}/products/admin/${productId}`, {
         method: "PATCH",
         headers: withAdminAuth({ includeJson: true }),
-        body: JSON.stringify({ ...draft, image: normalizedImage }),
+        body: JSON.stringify({
+          ...draft,
+          image: normalizedImage,
+          categoryId: draft.categoryId,
+        }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -285,15 +338,34 @@ function AdminProductsPage({ onSessionExpired }) {
         <input name="name" placeholder="Nombre" value={form.name} onChange={handleCreateChange} required />
         <input name="price" type="number" min="0" step="0.01" placeholder="Precio" value={form.price} onChange={handleCreateChange} required />
         <input name="stock" type="number" min="0" step="1" placeholder="Stock" value={form.stock} onChange={handleCreateChange} required />
-        <input name="category" placeholder="Categoría" value={form.category} onChange={handleCreateChange} required />
+        <select
+          name="categoryId"
+          value={form.categoryId}
+          onChange={handleCreateChange}
+          required
+          disabled={loadingCategories || categories.length === 0}
+        >
+          <option value="">{loadingCategories ? "Cargando categorías..." : "Seleccioná categoría"}</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id} disabled={!category.active}>
+              {category.name}{!category.active ? " (inactiva)" : ""}
+            </option>
+          ))}
+        </select>
         <input name="image" type="url" placeholder="URL de imagen" value={form.image} onChange={handleCreateChange} required />
         <textarea name="description" placeholder="Descripción" value={form.description} onChange={handleCreateChange} rows={2} />
         <label className="admin-checkbox">
           <input type="checkbox" name="active" checked={form.active} onChange={handleCreateChange} />
           Producto activo
         </label>
-        <button type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Crear producto"}</button>
+        <button type="submit" disabled={submitting || loadingCategories || categories.length === 0}>
+          {submitting ? "Guardando..." : "Crear producto"}
+        </button>
       </form>
+
+      {loadingCategories && <p className="admin-state">Cargando categorías...</p>}
+      {!loadingCategories && categoriesError && <p className="admin-state admin-state-error">{categoriesError}</p>}
+      {!loadingCategories && !categoriesError && categories.length === 0 && <p className="admin-state">No hay categorías para asociar productos.</p>}
 
       {loading && <p className="admin-state">Cargando productos...</p>}
       {!loading && errorMessage && <p className="admin-state admin-state-error">{errorMessage}</p>}
@@ -320,7 +392,19 @@ function AdminProductsPage({ onSessionExpired }) {
                     <input name="name" value={draft.name || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <input name="price" type="number" min="0" step="0.01" value={draft.price || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <input name="stock" type="number" min="0" step="1" value={draft.stock || "0"} onChange={(event) => handleDraftChange(product.id, event)} />
-                    <input name="category" value={draft.category || ""} onChange={(event) => handleDraftChange(product.id, event)} />
+                    <select
+                      name="categoryId"
+                      value={draft.categoryId || ""}
+                      onChange={(event) => handleDraftChange(product.id, event)}
+                      disabled={loadingCategories || categories.length === 0}
+                    >
+                      <option value="">Categoría sin asociar</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id} disabled={!category.active}>
+                          {category.name}{!category.active ? " (inactiva)" : ""}
+                        </option>
+                      ))}
+                    </select>
                     <input name="image" type="url" value={draft.image || ""} onChange={(event) => handleDraftChange(product.id, event)} required />
                     <textarea name="description" rows={2} value={draft.description || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <label className="admin-checkbox">

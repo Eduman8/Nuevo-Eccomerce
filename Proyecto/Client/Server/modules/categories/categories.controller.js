@@ -20,6 +20,15 @@ const handleServiceError = (next, error, fallbackMessage) => {
 };
 
 const createCategoriesController = (categoriesService) => ({
+  getPublicCategories: async (req, res, next) => {
+    try {
+      const categories = await categoriesService.getPublicCategories();
+      res.json(categories);
+    } catch (error) {
+      handleServiceError(next, error, "Error al listar categorías");
+    }
+  },
+
   getAdminCategories: async (req, res, next) => {
     try {
       const categories = await categoriesService.getAdminCategories();

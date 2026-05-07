@@ -104,7 +104,9 @@ app.use(
 
 app.use(errorHandler);
 
-Promise.all([ensureOrderSchema(pool), ensureProductsSchema(pool), ensureCategoriesSchema(pool)])
+ensureCategoriesSchema(pool)
+  .then(() => ensureProductsSchema(pool))
+  .then(() => ensureOrderSchema(pool))
   .then(() => {
     app.listen(PORT, () => {
       if (!MP_ACCESS_TOKEN) {

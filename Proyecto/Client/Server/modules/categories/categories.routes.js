@@ -12,6 +12,8 @@ const createCategoriesRouter = ({ pool }) => {
   const categoriesService = createCategoriesService(categoriesRepository);
   const categoriesController = createCategoriesController(categoriesService);
 
+  router.get("/", asyncHandler(categoriesController.getPublicCategories));
+
   router.get(
     "/admin",
     requireAuth,

@@ -57,9 +57,11 @@
 }
 
 .admin-products-create input,
+.admin-products-create select,
 .admin-products-create textarea,
 .admin-products-create button,
 .admin-product-grid input,
+.admin-product-grid select,
 .admin-product-grid textarea,
 .admin-product-actions button {
   border: 1px solid var(--border);

@@ -8,6 +8,17 @@ const CATEGORY_SELECT_FIELDS = `
 `;
 
 const createCategoriesRepository = (pool) => ({
+  getActive: async () => {
+    const result = await pool.query(
+      `SELECT id, name, image_url
+       FROM categories
+       WHERE active = TRUE
+       ORDER BY id DESC`,
+    );
+
+    return result.rows;
+  },
+
   getAllForAdmin: async () => {
     const result = await pool.query(
       `SELECT ${CATEGORY_SELECT_FIELDS}

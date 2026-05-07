@@ -190,6 +190,23 @@
   line-height: 1.55;
 }
 
+.categories-state {
+  margin: 0;
+  padding: clamp(18px, 3vw, 28px);
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.categories-state--error {
+  color: #9f2f2f;
+  border-color: color-mix(in srgb, #c94949 34%, var(--border));
+  background: color-mix(in srgb, #fff1f1 70%, var(--card));
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

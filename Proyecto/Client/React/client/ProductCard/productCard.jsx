@@ -14,7 +14,9 @@ function productCard({ product }) {
   return (
     <div
       className="card"
-      onClick={() => navigate(`/category/${product.category}`)}
+      onClick={() =>
+        navigate(`/category/${product.category_id || encodeURIComponent(product.category)}`)
+      }
     >
       <img src={product.image} alt={product.name} />
       <div className="card__body">
