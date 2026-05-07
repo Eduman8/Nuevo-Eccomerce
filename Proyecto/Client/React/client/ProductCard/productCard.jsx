@@ -1,4 +1,6 @@
 import "./productCard.css";
+import "../Skeleton/SkeletonBlock.css";
+import { useEffect, useState } from "react";
 import { useCart } from "../Hooks/useCart";
 import { useNavigate } from "react-router-dom";
 
@@ -25,6 +27,16 @@ function ProductCard({ product }) {
   const productImage = images[0] || "";
   const secondaryImage = images[1];
   const hasSecondaryImage = Boolean(secondaryImage);
+  const [primaryImageLoaded, setPrimaryImageLoaded] = useState(false);
+  const [secondaryImageLoaded, setSecondaryImageLoaded] = useState(false);
+
+  useEffect(() => {
+    setPrimaryImageLoaded(false);
+  }, [productImage]);
+
+  useEffect(() => {
+    setSecondaryImageLoaded(false);
+  }, [secondaryImage]);
 
   const goToProductDetail = () => {
     if (!product?.id) return;
@@ -48,22 +60,39 @@ function ProductCard({ product }) {
     >
       <div
         className={
-          hasSecondaryImage
+          hasSecondaryImage && secondaryImageLoaded
             ? "card__image-wrapper card__image-wrapper--has-hover"
             : "card__image-wrapper"
         }
       >
-        <img
-          className="card__image card__image--primary"
-          src={productImage}
-          alt={product.name}
-        />
+        {productImage && !primaryImageLoaded && (
+          <span className="card__image-placeholder skeleton-block" aria-hidden="true" />
+        )}
+        {productImage ? (
+          <img
+            className={
+              primaryImageLoaded
+                ? "card__image card__image--primary card__image--loaded"
+                : "card__image card__image--primary"
+            }
+            src={productImage}
+            alt={product.name}
+            onLoad={() => setPrimaryImageLoaded(true)}
+          />
+        ) : (
+          <span className="card__image-fallback">Sin imagen</span>
+        )}
         {hasSecondaryImage && (
           <img
-            className="card__image card__image--secondary"
+            className={
+              secondaryImageLoaded
+                ? "card__image card__image--secondary card__image--loaded"
+                : "card__image card__image--secondary"
+            }
             src={secondaryImage}
             alt=""
             aria-hidden="true"
+            onLoad={() => setSecondaryImageLoaded(true)}
           />
         )}
       </div>

@@ -1,0 +1,38 @@
+.skeleton-block {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-soft) 72%, var(--card)) 25%,
+    color-mix(in srgb, var(--surface-soft) 48%, var(--card)) 37%,
+    color-mix(in srgb, var(--surface-soft) 72%, var(--card)) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s ease infinite;
+}
+
+[data-theme='dark'] .skeleton-block {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+  background-size: 400% 100%;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+}

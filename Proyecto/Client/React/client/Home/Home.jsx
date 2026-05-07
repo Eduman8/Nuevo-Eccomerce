@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import CategoryCard from "../CategoryCard/CategoryCard";
+import CategoryCardSkeleton from "../CategoryCard/CategoryCardSkeleton";
+import "../Skeleton/SkeletonBlock.css";
 import "./Home.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -8,6 +10,7 @@ function Home() {
   const [categories, setCategories] = useState([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [categoriesError, setCategoriesError] = useState("");
+  const [heroImageLoaded, setHeroImageLoaded] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,9 +77,12 @@ function Home() {
 
         <div className="hero__visual">
           <div className="hero__visual-glow" />
+          {!heroImageLoaded && <span className="hero__image-placeholder skeleton-block" aria-hidden="true" />}
           <img
+            className={heroImageLoaded ? "hero__image hero__image--loaded" : "hero__image"}
             src="https://res.cloudinary.com/dbkfkpjjl/image/upload/v1774051224/Captura_de_pantalla_2026-03-20_210005_wb3yvz.png"
             alt="Mate premium HARTA"
+            onLoad={() => setHeroImageLoaded(true)}
           />
           {/* <span className="hero__floating-badge hero__floating-badge-top">+500 clientes</span>
           <span className="hero__floating-badge hero__floating-badge-bottom">Envíos 24hs</span> */}
@@ -93,7 +99,11 @@ function Home() {
       </header>
 
       {isLoadingCategories ? (
-        <p className="categories-state">Cargando categorías...</p>
+        <div className="grid" aria-label="Cargando categorías">
+          {Array.from({ length: 6 }, (_, index) => (
+            <CategoryCardSkeleton key={index} />
+          ))}
+        </div>
       ) : categoriesError ? (
         <p className="categories-state categories-state--error">{categoriesError}</p>
       ) : categories.length === 0 ? (

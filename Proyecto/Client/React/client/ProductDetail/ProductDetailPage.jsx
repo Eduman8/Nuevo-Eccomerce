@@ -1,9 +1,11 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import ProductCard from "../ProductCard/productCard";
+import ProductDetailSkeleton from "./ProductDetailSkeleton";
 import ProductImageLightbox from "../ProductCard/ProductImageLightbox";
 import { useCart } from "../Hooks/useCart";
 import "./ProductDetailPage.css";
+import "../Skeleton/SkeletonBlock.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 const DEFAULT_TITLE = "#HARTA";
@@ -74,6 +76,8 @@ function ProductDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedImageLoaded, setSelectedImageLoaded] = useState(false);
+  const [loadedThumbs, setLoadedThumbs] = useState({});
 
   const images = useMemo(() => getProductImages(product || {}), [product]);
   const selectedImage = images[selectedImageIndex] || images[0] || "";
@@ -88,6 +92,8 @@ function ProductDetailPage() {
       setErrorMessage("");
       setSelectedImageIndex(0);
       setLightboxIndex(null);
+      setSelectedImageLoaded(false);
+      setLoadedThumbs({});
 
       try {
         const response = await fetch(`${API_BASE_URL}/products/${id}`);
@@ -154,6 +160,10 @@ function ProductDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    setSelectedImageLoaded(false);
+  }, [selectedImage]);
+
+  useEffect(() => {
     document.title = product?.name ? `${product.name} | ${DEFAULT_TITLE}` : DEFAULT_TITLE;
 
     return () => {
@@ -162,16 +172,7 @@ function ProductDetailPage() {
   }, [product?.name]);
 
   if (isLoading) {
-    return (
-      <section className="product-detail product-detail--state">
-        <div className="product-detail__skeleton product-detail__skeleton--image" />
-        <div className="product-detail__skeleton-copy">
-          <span />
-          <span />
-          <span />
-        </div>
-      </section>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (errorMessage || !product) {
@@ -210,7 +211,17 @@ function ProductDetailPage() {
               disabled={!selectedImage}
             >
               {selectedImage ? (
-                <img src={selectedImage} alt={product.name} />
+                <>
+                  {!selectedImageLoaded && (
+                    <span className="product-detail__image-placeholder skeleton-block" aria-hidden="true" />
+                  )}
+                  <img
+                    className={selectedImageLoaded ? "product-detail__image--loaded" : ""}
+                    src={selectedImage}
+                    alt={product.name}
+                    onLoad={() => setSelectedImageLoaded(true)}
+                  />
+                </>
               ) : (
                 <span>Sin imagen</span>
               )}
@@ -227,11 +238,22 @@ function ProductDetailPage() {
                         ? "product-detail__thumb product-detail__thumb--active"
                         : "product-detail__thumb"
                     }
-                    onClick={() => setSelectedImageIndex(index)}
+                    onClick={() => {
+                      setSelectedImageLoaded(false);
+                      setSelectedImageIndex(index);
+                    }}
                     aria-label={`Ver imagen ${index + 1}`}
                     aria-current={index === selectedImageIndex ? "true" : undefined}
                   >
-                    <img src={image} alt={`${product.name} ${index + 1}`} />
+                    {!loadedThumbs[image] && (
+                      <span className="product-detail__thumb-placeholder skeleton-block" aria-hidden="true" />
+                    )}
+                    <img
+                      className={loadedThumbs[image] ? "product-detail__thumb-image--loaded" : ""}
+                      src={image}
+                      alt={`${product.name} ${index + 1}`}
+                      onLoad={() => setLoadedThumbs((current) => ({ ...current, [image]: true }))}
+                    />
                   </button>
                 ))}
               </div>

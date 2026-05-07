@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import ProductCard from "../ProductCard/productCard";
+import ProductCardSkeleton from "../ProductCard/ProductCardSkeleton";
 import "./CategoryPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -112,7 +113,7 @@ function CategoryPage({ addToCart }) {
 
       <div className="category-products__grid">
         {isLoading ? (
-          <p className="category-products__loading">Cargando productos...</p>
+          Array.from({ length: 8 }, (_, index) => <ProductCardSkeleton key={index} />)
         ) : errorMessage ? (
           <p className="category-products__empty">{errorMessage}</p>
         ) : products.length > 0 ? (
