@@ -38,6 +38,19 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.card__description {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .card__price {
   color: var(--text);
   font-size: clamp(1.1rem, 1.3vw, 1.28rem);

@@ -10,6 +10,7 @@ function productCard({ product }) {
   const canBuy = hasStock && isActive;
   const stockLabel = !isActive ? "No disponible" : !hasStock ? "Sin stock" : "En stock";
   const stockClass = !isActive || !hasStock ? "stock-pill stock-pill--off" : "stock-pill";
+  const description = typeof product?.description === "string" ? product.description.trim() : "";
 
   return (
     <div
@@ -21,6 +22,7 @@ function productCard({ product }) {
       <img src={product.image} alt={product.name} />
       <div className="card__body">
         <h3>{product.name}</h3>
+        {description && <p className="card__description">{description}</p>}
         <p className="card__price">${product.price}</p>
         <p className={stockClass}>{stockLabel}</p>
       </div>

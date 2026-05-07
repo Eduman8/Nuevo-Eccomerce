@@ -67,7 +67,6 @@ function Home() {
           </div>
 
           <div className="hero__trust">
-            <span>Envíos a todo el país</span>
             <span>Pago seguro</span>
             <span>Stock real</span>
           </div>

@@ -94,7 +94,7 @@ function Navbar({ user, setUser }) {
     <>
       <nav className="navbar">
         <div className="nav-left">
-          <h2 className="logo">HARTA</h2>
+          <h2 className="logo">#HARTA</h2>
 
           <div className="links">
             <Link to="/">Inicio</Link>
