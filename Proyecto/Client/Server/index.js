@@ -9,6 +9,7 @@ const env = require("./config/env");
 
 const createUsersRouter = require("./modules/users/users.routes");
 const createProductsRouter = require("./modules/products/products.routes");
+const createCategoriesRouter = require("./modules/categories/categories.routes");
 const createAuthRouter = require("./modules/auth/auth.routes");
 const createCartRouter = require("./modules/cart/cart.routes");
 const createOrdersRouter = require("./modules/orders/orders.routes");
@@ -20,6 +21,7 @@ const createResendClient = require("./modules/notifications/resend.client");
 const createOrdersWorkflow = require("./modules/orders/orders.workflow");
 const ensureOrderSchema = require("./modules/orders/orders.schema");
 const ensureProductsSchema = require("./modules/products/products.schema");
+const ensureCategoriesSchema = require("./modules/categories/categories.schema");
 const errorHandler = require("./middlewares/errorHandler");
 
 const {
@@ -68,6 +70,7 @@ const { finalizeOrderWithStockValidation, confirmMercadoPagoPayment } =
 
 app.use("/api/users", createUsersRouter({ pool }));
 app.use("/api/products", createProductsRouter({ pool }));
+app.use("/api/categories", createCategoriesRouter({ pool }));
 app.use("/api/auth", createAuthRouter({ pool, isAdminEmail }));
 app.use("/api/cart", createCartRouter({ pool }));
 app.use(
@@ -101,7 +104,7 @@ app.use(
 
 app.use(errorHandler);
 
-Promise.all([ensureOrderSchema(pool), ensureProductsSchema(pool)])
+Promise.all([ensureOrderSchema(pool), ensureProductsSchema(pool), ensureCategoriesSchema(pool)])
   .then(() => {
     app.listen(PORT, () => {
       if (!MP_ACCESS_TOKEN) {
@@ -119,7 +122,7 @@ Promise.all([ensureOrderSchema(pool), ensureProductsSchema(pool)])
   })
   .catch((error) => {
     console.error(
-      "[Startup Error] No se pudo inicializar el schema de orders:",
+      "[Startup Error] No se pudo inicializar el schema de la aplicación:",
       error,
     );
     process.exit(1);

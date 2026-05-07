@@ -263,9 +263,14 @@ function AdminProductsPage({ onSessionExpired }) {
           <h1>Administración de productos</h1>
           <p>Gestioná catálogo, stock, precios y estado sin afectar pedidos históricos.</p>
         </div>
-        <Link to="/admin/orders" className="admin-products-link">
-          Ir a pedidos
-        </Link>
+        <div className="admin-products-header-actions">
+          <Link to="/admin/categories" className="admin-products-link">
+            Ir a categorías
+          </Link>
+          <Link to="/admin/orders" className="admin-products-link">
+            Ir a pedidos
+          </Link>
+        </div>
       </header>
 
       <div className="admin-products-kpis">
