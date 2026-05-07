@@ -164,3 +164,26 @@ video {
     font-size: 14px;
   }
 }
+
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+}
+
+a,
+button,
+input,
+select,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  * {
+    scroll-behavior: auto;
+  }
+}

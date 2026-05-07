@@ -462,3 +462,131 @@
     transform: scale(1.02);
   }
 }
+
+.card {
+  min-width: 0;
+}
+
+.card__body,
+.card h3,
+.card__description {
+  min-width: 0;
+}
+
+.card__buy-btn {
+  min-height: 44px;
+}
+
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .card__buy-btn:hover,
+  .product-image-lightbox__nav:hover,
+  .product-image-lightbox__close:hover {
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .card {
+    gap: 10px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .card__image-wrapper {
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+  }
+
+  .card__body {
+    gap: 5px;
+  }
+
+  .card h3 {
+    min-height: auto;
+    font-size: 0.98rem;
+  }
+
+  .card__description {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 0.86rem;
+  }
+
+  .stock-pill {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 11px;
+  }
+
+  .card__buy-btn {
+    min-height: 46px;
+    border-radius: 13px;
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .product-image-lightbox {
+    height: 100dvh;
+    padding: max(72px, env(safe-area-inset-top)) 14px max(92px, env(safe-area-inset-bottom));
+    align-items: center;
+  }
+
+  .product-image-lightbox__stage {
+    width: 100%;
+    height: 100%;
+  }
+
+  .product-image-lightbox__image {
+    max-width: 100%;
+    max-height: calc(100dvh - 176px);
+    border-radius: 12px;
+  }
+
+  .product-image-lightbox__nav {
+    width: 52px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .product-image-lightbox__nav--prev {
+    left: 8px;
+  }
+
+  .product-image-lightbox__nav--next {
+    right: 8px;
+  }
+
+  .product-image-lightbox__close {
+    top: max(14px, env(safe-area-inset-top));
+    right: 14px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .product-image-lightbox__gallery {
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: min(100% - 24px, 340px);
+  }
+
+  .product-image-lightbox__dots {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .product-image-lightbox__dot {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+  }
+}

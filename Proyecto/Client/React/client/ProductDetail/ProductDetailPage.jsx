@@ -299,6 +299,24 @@ function ProductDetailPage() {
           </aside>
         </section>
 
+        <div className="product-detail__mobile-cta" aria-label="Compra rápida mobile">
+          <div>
+            <span>{formatPrice(product.price)}</span>
+            <small>{stockInfo.label}</small>
+          </div>
+          <button
+            type="button"
+            onClick={() => addToCart(product)}
+            disabled={!stockInfo.canBuy || isMutatingCart}
+          >
+            {!stockInfo.canBuy
+              ? stockInfo.label
+              : isMutatingCart
+                ? "Agregando..."
+                : "Agregar"}
+          </button>
+        </div>
+
         {relatedProducts.length > 0 && (
           <section className="product-detail__related">
             <div className="product-detail__related-header">

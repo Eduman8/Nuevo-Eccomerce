@@ -10,6 +10,7 @@ function Navbar({ user, setUser }) {
   const [theme, setTheme] = useState("light");
   const [showLogin, setShowLogin] = useState(false);
   const [showCart, setShowCart] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const loginRef = useRef();
   const cartRef = useRef();
@@ -63,6 +64,10 @@ function Navbar({ user, setUser }) {
     return () => document.body.classList.remove("no-scroll");
   }, [showCart]);
 
+  useEffect(() => {
+    if (showCart) setMobileMenuOpen(false);
+  }, [showCart]);
+
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
@@ -96,22 +101,34 @@ function Navbar({ user, setUser }) {
         <div className="nav-left">
           <h2 className="logo">#HARTA</h2>
 
-          <div className="links">
-            <Link to="/">Inicio</Link>
-            <Link to="/products">Productos</Link>
-            {isAdminUser(user) && <Link to="/admin">Administración</Link>}
-            {isAdminUser(user) && <Link to="/admin/orders">Pedidos (Admin)</Link>}
-            {user && <Link to="/orders">Pedidos</Link>}
+          <div className={mobileMenuOpen ? "links links--open" : "links"} id="primary-navigation">
+            <Link to="/" onClick={() => setMobileMenuOpen(false)}>Inicio</Link>
+            <Link to="/products" onClick={() => setMobileMenuOpen(false)}>Productos</Link>
+            {user && <Link to="/orders" onClick={() => setMobileMenuOpen(false)}>Pedidos</Link>}
+            {isAdminUser(user) && <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>Admin</Link>}
+            {isAdminUser(user) && <Link to="/admin/orders" onClick={() => setMobileMenuOpen(false)}>Pedidos admin</Link>}
           </div>
         </div>
 
         <div className="nav-right">
-          <button className="theme-btn" onClick={toggleTheme} aria-label="Cambiar tema">
+          <button
+            type="button"
+            className="nav-menu-btn"
+            onClick={() => setMobileMenuOpen((isOpen) => !isOpen)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="primary-navigation"
+            aria-label="Abrir menú de navegación"
+          >
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </button>
+          <button type="button" className="theme-btn" onClick={toggleTheme} aria-label="Cambiar tema">
             {theme === "light" ? "🌙" : "☀️"}
           </button>
 
           <div className="cart-container">
-            <button className="cart-btn" onClick={() => setShowCart(!showCart)}>
+            <button type="button" className="cart-btn" onClick={() => setShowCart(!showCart)} aria-label={`Abrir carrito${cartCount > 0 ? `, ${cartCount} productos` : ""}`}>
               🛒
               {cartCount > 0 && <span className="badge">{cartCount}</span>}
             </button>
@@ -121,6 +138,7 @@ function Navbar({ user, setUser }) {
             {!user ? (
               <>
                 <button
+                  type="button"
                   className="login-btn"
                   onClick={() => setShowLogin(!showLogin)}
                 >
@@ -142,7 +160,7 @@ function Navbar({ user, setUser }) {
               <div className="user-box">
                 {user.picture && <img src={user.picture} alt="user" />}
                 <span>{user.name}</span>
-                <button onClick={() => setUser(null)}>Salir</button>
+                <button type="button" onClick={() => setUser(null)}>Salir</button>
               </div>
             )}
           </div>
@@ -154,7 +172,7 @@ function Navbar({ user, setUser }) {
       <aside className={`sidecart ${showCart ? "open" : ""}`} ref={cartRef}>
         <div className="sidecart-header">
           <h4>Carrito</h4>
-          <button onClick={() => setShowCart(false)} aria-label="Cerrar carrito">
+          <button type="button" onClick={() => setShowCart(false)} aria-label="Cerrar carrito">
             ✕
           </button>
         </div>
