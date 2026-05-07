@@ -99,3 +99,26 @@
     grid-template-columns: 1fr;
   }
 }
+
+.category-products,
+.category-products__grid {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .category-products__grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .category-products__grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .category-products__grid {
+    grid-template-columns: 1fr;
+  }
+}

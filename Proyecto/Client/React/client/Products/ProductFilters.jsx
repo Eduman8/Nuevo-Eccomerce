@@ -8,6 +8,13 @@ const SORT_OPTIONS = [
 
 function ProductFilters({ categories, filters, onChange, onClear, isOpen, onToggle }) {
   const updateField = (field, value) => onChange({ ...filters, [field]: value });
+  const activeFiltersCount = [
+    filters.categoryId,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.inStock,
+    filters.sort && filters.sort !== "newest",
+  ].filter(Boolean).length;
 
   return (
     <aside className="product-filters">
@@ -17,7 +24,7 @@ function ProductFilters({ categories, filters, onChange, onClear, isOpen, onTogg
         onClick={onToggle}
         aria-expanded={isOpen}
       >
-        Filtros
+        <span>Filtros{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}</span>
         <span aria-hidden="true">{isOpen ? "−" : "+"}</span>
       </button>
 
