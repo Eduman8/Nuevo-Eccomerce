@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import CategoryCard from "../CategoryCard/CategoryCard";
 import CategoryCardSkeleton from "../CategoryCard/CategoryCardSkeleton";
 import "../Skeleton/SkeletonBlock.css";
@@ -61,9 +62,9 @@ function Home() {
             cada pausa se sienta especial.
           </p>
           <div className="hero__actions">
-            <a className="hero__cta hero__cta-primary" href="#categorias">
+            <Link className="hero__cta hero__cta-primary" to="/products">
               Comprar ahora
-            </a>
+            </Link>
             <a className="hero__cta hero__cta-secondary" href="#categorias">
               Ver colección
             </a>

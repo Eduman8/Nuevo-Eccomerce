@@ -31,6 +31,64 @@ const PRODUCT_IMAGES_JOIN = `
   ) product_images ON TRUE
 `;
 
+const SORT_CLAUSES = {
+  newest: "p.id DESC",
+  price_asc: "p.price ASC, p.id DESC",
+  price_desc: "p.price DESC, p.id DESC",
+  name_asc: "LOWER(p.name) ASC, p.id DESC",
+  name_desc: "LOWER(p.name) DESC, p.id DESC",
+};
+
+const escapeLikePattern = (value) => String(value).replace(/[\\%_]/g, "\\$&");
+
+const buildPublicProductsQuery = ({
+  search = "",
+  categoryId = null,
+  minPrice = null,
+  maxPrice = null,
+  inStock = false,
+  sort = "newest",
+} = {}) => {
+  const values = [];
+  const where = ["p.active = TRUE"];
+
+  if (search) {
+    values.push(`%${escapeLikePattern(search)}%`);
+    where.push(`(
+      p.name ILIKE $${values.length} ESCAPE '\\'
+      OR p.description ILIKE $${values.length} ESCAPE '\\'
+    )`);
+  }
+
+  if (categoryId !== null) {
+    values.push(categoryId);
+    where.push(`p.category_id = $${values.length}`);
+  }
+
+  if (minPrice !== null) {
+    values.push(minPrice);
+    where.push(`p.price >= $${values.length}`);
+  }
+
+  if (maxPrice !== null) {
+    values.push(maxPrice);
+    where.push(`p.price <= $${values.length}`);
+  }
+
+  if (inStock) {
+    where.push("p.stock > 0");
+  }
+
+  return {
+    text: `SELECT ${PRODUCT_SELECT_FIELDS}
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+${PRODUCT_IMAGES_JOIN}       WHERE ${where.join(" AND ")}
+       ORDER BY ${SORT_CLAUSES[sort] || SORT_CLAUSES.newest}`,
+    values,
+  };
+};
+
 const getDbClient = async (pool) => pool.connect();
 
 const insertProductImages = async (productId, images, client) => {
@@ -95,14 +153,9 @@ ${PRODUCT_IMAGES_JOIN}     WHERE p.id = $1`,
 };
 
 const createProductsRepository = (pool) => ({
-  getPublic: async () => {
-    const result = await pool.query(
-      `SELECT ${PRODUCT_SELECT_FIELDS}
-       FROM products p
-       LEFT JOIN categories c ON c.id = p.category_id
-${PRODUCT_IMAGES_JOIN}       WHERE p.active = TRUE
-       ORDER BY p.id DESC`,
-    );
+  getPublic: async (filters = {}) => {
+    const query = buildPublicProductsQuery(filters);
+    const result = await pool.query(query.text, query.values);
 
     return result.rows;
   },

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "../Home/Home";
 import Orders from "../Pages/Orders";
 import CategoryPage from "../CategoryPage/CategoryPage";
+import ProductsPage from "../Products/ProductsPage";
 import ProductDetailPage from "../ProductDetail/ProductDetailPage";
 import ProtectedRoute from "../ProtectedRoute";
 import Navbar from "../Navbar/Navbar";
@@ -46,6 +47,7 @@ function App() {
 
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/products" element={<ProductsPage />} />
             <Route path="/category/:category" element={<CategoryPage />} />
             <Route path="/products/:id" element={<ProductDetailPage />} />
 

@@ -150,8 +150,94 @@ const validateAndBuildPayload = async (
   };
 };
 
+const ALLOWED_PUBLIC_SORTS = new Set([
+  "newest",
+  "price_asc",
+  "price_desc",
+  "name_asc",
+  "name_desc",
+]);
+
+const getSingleQueryValue = (query, fieldName) => {
+  const value = query[fieldName];
+  if (Array.isArray(value)) {
+    throw { status: 400, payload: { error: `${fieldName} no permite múltiples valores` } };
+  }
+
+  return value;
+};
+
+const normalizeOptionalQueryString = (query, fieldName) => {
+  const value = getSingleQueryValue(query, fieldName);
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+};
+
+const normalizeOptionalQueryPrice = (query, fieldName) => {
+  const value = getSingleQueryValue(query, fieldName);
+  if (value === undefined || value === null || value === "") return null;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw { status: 400, payload: { error: `${fieldName} debe ser un número mayor o igual a 0` } };
+  }
+
+  return Number(parsed.toFixed(2));
+};
+
+const normalizeOptionalQueryCategoryId = (query) => {
+  const value = getSingleQueryValue(query, "categoryId");
+  if (value === undefined || value === null || value === "") return null;
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw { status: 400, payload: { error: "categoryId debe ser un entero positivo" } };
+  }
+
+  return parsed;
+};
+
+const normalizeOptionalQueryBoolean = (query, fieldName) => {
+  const value = getSingleQueryValue(query, fieldName);
+  if (value === undefined || value === null || value === "") return false;
+
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+
+  throw { status: 400, payload: { error: `${fieldName} debe ser true o false` } };
+};
+
+const normalizePublicProductFilters = (query = {}) => {
+  const search = normalizeOptionalQueryString(query, "search");
+  const categoryId = normalizeOptionalQueryCategoryId(query);
+  const minPrice = normalizeOptionalQueryPrice(query, "minPrice");
+  const maxPrice = normalizeOptionalQueryPrice(query, "maxPrice");
+  const inStock = normalizeOptionalQueryBoolean(query, "inStock");
+  const sort = normalizeOptionalQueryString(query, "sort") || "newest";
+
+  if (search.length > 120) {
+    throw { status: 400, payload: { error: "search permite un máximo de 120 caracteres" } };
+  }
+
+  if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
+    throw { status: 400, payload: { error: "minPrice no puede ser mayor que maxPrice" } };
+  }
+
+  if (!ALLOWED_PUBLIC_SORTS.has(sort)) {
+    throw {
+      status: 400,
+      payload: {
+        error: "sort inválido. Valores permitidos: newest, price_asc, price_desc, name_asc, name_desc",
+      },
+    };
+  }
+
+  return { search, categoryId, minPrice, maxPrice, inStock, sort };
+};
+
 const createProductsService = (productsRepository) => ({
-  getPublicProducts: async () => productsRepository.getPublic(),
+  getPublicProducts: async (query = {}) =>
+    productsRepository.getPublic(normalizePublicProductFilters(query)),
 
   getProductById: async (id) => {
     const productId = Number(id);

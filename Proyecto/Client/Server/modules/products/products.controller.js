@@ -22,7 +22,7 @@ const handleServiceError = (next, error, fallbackMessage) => {
 const createProductsController = (productsService) => ({
   getPublicProducts: async (req, res, next) => {
     try {
-      const products = await productsService.getPublicProducts();
+      const products = await productsService.getPublicProducts(req.query);
       res.json(products);
     } catch (error) {
       handleServiceError(next, error, "Error al listar productos");
