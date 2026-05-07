@@ -286,7 +286,7 @@ function ProductDetailPage() {
 
             <button
               type="button"
-              className="product-detail__cta"
+              className="product-detail__cta product-detail__add-button product-detail__add-button--main"
               onClick={() => addToCart(product)}
               disabled={!stockInfo.canBuy || isMutatingCart}
             >

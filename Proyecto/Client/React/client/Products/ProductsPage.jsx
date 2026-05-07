@@ -3,8 +3,8 @@ import ProductCatalog from "./ProductCatalog";
 function ProductsPage() {
   return (
     <ProductCatalog
-      title="Productos"
-      subtitle="Buscá, filtrá y ordená piezas con stock real para tu ritual diario."
+      title="Todos nuestros productos"
+      subtitle="Encontrá piezas seleccionadas para sumar a tu carrito."
     />
   );
 }

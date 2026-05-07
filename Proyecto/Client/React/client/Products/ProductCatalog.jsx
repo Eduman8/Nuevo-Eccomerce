@@ -62,7 +62,9 @@ function ProductCatalog({ initialCategory = "", title = "Productos", subtitle = 
 
   const currentCategoryName = useMemo(() => {
     const selected = categories.find((category) => String(category.id) === String(filters.categoryId));
-    return selected?.name || title;
+    if (selected?.name) return selected.name;
+    if (filters.categoryId && title && !isNumericId(title)) return title;
+    return "Todos nuestros productos";
   }, [categories, filters.categoryId, title]);
 
   useEffect(() => {
