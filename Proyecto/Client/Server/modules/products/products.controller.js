@@ -29,6 +29,15 @@ const createProductsController = (productsService) => ({
     }
   },
 
+  getProductById: async (req, res, next) => {
+    try {
+      const product = await productsService.getProductById(req.params.id);
+      res.json(product);
+    } catch (error) {
+      handleServiceError(next, error, "Error al obtener producto");
+    }
+  },
+
   getAdminProducts: async (req, res, next) => {
     try {
       const products = await productsService.getAdminProducts();

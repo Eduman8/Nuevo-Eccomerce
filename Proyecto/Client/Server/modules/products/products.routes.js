@@ -21,6 +21,8 @@ const createProductsRouter = ({ pool }) => {
     asyncHandler(productsController.getAdminProducts),
   );
 
+  router.get("/:id", asyncHandler(productsController.getProductById));
+
   router.post(
     "/admin",
     requireAuth,

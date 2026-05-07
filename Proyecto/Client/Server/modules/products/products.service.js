@@ -153,6 +153,20 @@ const validateAndBuildPayload = async (
 const createProductsService = (productsRepository) => ({
   getPublicProducts: async () => productsRepository.getPublic(),
 
+  getProductById: async (id) => {
+    const productId = Number(id);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      throw { status: 404, payload: { error: "Producto no encontrado" } };
+    }
+
+    const product = await productsRepository.getById(productId);
+    if (!product) {
+      throw { status: 404, payload: { error: "Producto no encontrado" } };
+    }
+
+    return product;
+  },
+
   getAdminProducts: async () => productsRepository.getAllForAdmin(),
 
   createProduct: async (input) => {
