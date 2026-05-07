@@ -11,12 +11,14 @@ import "./AdminPanel.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
+const emptyImages = ["", "", ""];
+
 const initialForm = {
   name: "",
   description: "",
   price: "",
   categoryId: "",
-  image: "",
+  images: [...emptyImages],
   stock: "0",
   active: true,
 };
@@ -29,6 +31,40 @@ const isValidHttpUrl = (value) => {
     return false;
   }
 };
+
+const getProductImages = (product = {}) => {
+  const images = Array.isArray(product.images) ? product.images : [];
+  const fallbackImage = product.image_url || product.image || "";
+  const normalizedImages = images
+    .map((image) => String(image || "").trim())
+    .filter(Boolean);
+
+  if (normalizedImages.length > 0) {
+    return normalizedImages.slice(0, 3);
+  }
+
+  return fallbackImage ? [String(fallbackImage).trim()] : [];
+};
+
+const toImageInputs = (images = []) => {
+  const normalizedImages = images
+    .map((image) => String(image || "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return [...normalizedImages, ...emptyImages].slice(0, 3);
+};
+
+const normalizeImageInputs = (images = []) =>
+  images
+    .map((image) => String(image || "").trim())
+    .filter(Boolean);
+
+const imageFieldLabels = [
+  "Imagen principal",
+  "Imagen secundaria (opcional)",
+  "Imagen terciaria (opcional)",
+];
 
 function AdminProductsPage({ onSessionExpired }) {
   const [products, setProducts] = useState([]);
@@ -117,7 +153,7 @@ function AdminProductsPage({ onSessionExpired }) {
             description: product.description || "",
             price: String(product.price ?? ""),
             categoryId: String(product.category_id || ""),
-            image: product.image || "",
+            images: toImageInputs(getProductImages(product)),
             stock: String(product.stock ?? 0),
             active: Boolean(product.active),
           };
@@ -144,6 +180,14 @@ function AdminProductsPage({ onSessionExpired }) {
     setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
+  const handleCreateImageChange = (index, value) => {
+    setForm((prev) => {
+      const images = [...prev.images];
+      images[index] = value;
+      return { ...prev, images };
+    });
+  };
+
   const handleDraftChange = (productId, event) => {
     const { name, value, type, checked } = event.target;
     setDraftsById((prev) => ({
@@ -153,6 +197,22 @@ function AdminProductsPage({ onSessionExpired }) {
         [name]: type === "checkbox" ? checked : value,
       },
     }));
+  };
+
+  const handleDraftImageChange = (productId, index, value) => {
+    setDraftsById((prev) => {
+      const draft = prev[productId] || {};
+      const images = [...(draft.images || emptyImages)];
+      images[index] = value;
+
+      return {
+        ...prev,
+        [productId]: {
+          ...draft,
+          images,
+        },
+      };
+    });
   };
 
   const summary = useMemo(() => {
@@ -166,20 +226,20 @@ function AdminProductsPage({ onSessionExpired }) {
   const createProduct = async (event) => {
     event.preventDefault();
 
-    const normalizedImage = String(form.image || "").trim();
+    const normalizedImages = normalizeImageInputs(form.images);
 
     if (!form.categoryId) {
       notifyError("Seleccioná una categoría para crear el producto.");
       return;
     }
 
-    if (!normalizedImage) {
-      notifyError("La imagen es obligatoria para crear un producto.");
+    if (normalizedImages.length === 0) {
+      notifyError("La imagen principal es obligatoria para crear un producto.");
       return;
     }
 
-    if (!isValidHttpUrl(normalizedImage)) {
-      notifyError("La imagen debe ser una URL válida (http/https).");
+    if (normalizedImages.some((image) => !isValidHttpUrl(image))) {
+      notifyError("Todas las imágenes deben ser URLs válidas (http/https).");
       return;
     }
 
@@ -191,7 +251,8 @@ function AdminProductsPage({ onSessionExpired }) {
         headers: withAdminAuth({ includeJson: true }),
         body: JSON.stringify({
           ...form,
-          image: normalizedImage,
+          image: normalizedImages[0],
+          images: normalizedImages,
           categoryId: form.categoryId,
         }),
       });
@@ -220,20 +281,20 @@ function AdminProductsPage({ onSessionExpired }) {
 
   const saveProduct = async (productId) => {
     const draft = draftsById[productId] || {};
-    const normalizedImage = String(draft.image || "").trim();
+    const normalizedImages = normalizeImageInputs(draft.images || emptyImages);
 
     if (!draft.categoryId) {
       notifyError("Seleccioná una categoría para guardar el producto.");
       return;
     }
 
-    if (!normalizedImage) {
-      notifyError("La imagen no puede quedar vacía al editar el producto.");
+    if (normalizedImages.length === 0) {
+      notifyError("La imagen principal no puede quedar vacía al editar el producto.");
       return;
     }
 
-    if (!isValidHttpUrl(normalizedImage)) {
-      notifyError("La imagen debe ser una URL válida (http/https).");
+    if (normalizedImages.some((image) => !isValidHttpUrl(image))) {
+      notifyError("Todas las imágenes deben ser URLs válidas (http/https).");
       return;
     }
 
@@ -245,7 +306,8 @@ function AdminProductsPage({ onSessionExpired }) {
         headers: withAdminAuth({ includeJson: true }),
         body: JSON.stringify({
           ...draft,
-          image: normalizedImage,
+          image: normalizedImages[0],
+          images: normalizedImages,
           categoryId: draft.categoryId,
         }),
       });
@@ -262,6 +324,13 @@ function AdminProductsPage({ onSessionExpired }) {
       }
 
       setProducts((prev) => prev.map((product) => (product.id === productId ? payload : product)));
+      setDraftsById((prev) => ({
+        ...prev,
+        [productId]: {
+          ...(prev[productId] || {}),
+          images: toImageInputs(getProductImages(payload || {})),
+        },
+      }));
       success(`Producto #${productId} actualizado.`);
     } catch (error) {
       console.error(error);
@@ -352,7 +421,25 @@ function AdminProductsPage({ onSessionExpired }) {
             </option>
           ))}
         </select>
-        <input name="image" type="url" placeholder="URL de imagen" value={form.image} onChange={handleCreateChange} required />
+        <div className="admin-image-fields">
+          {imageFieldLabels.map((label, index) => (
+            <label key={label} className="admin-image-field">
+              <span>{label}</span>
+              <input
+                type="url"
+                placeholder={index === 0 ? "https://frente.jpg" : "https://opcional.jpg"}
+                value={form.images[index] || ""}
+                onChange={(event) => handleCreateImageChange(index, event.target.value)}
+                required={index === 0}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="admin-image-previews" aria-label="Vista previa de imágenes del producto">
+          {normalizeImageInputs(form.images).map((image, index) => (
+            <img key={`${image}-${index}`} src={image} alt={`Vista previa ${index + 1}`} />
+          ))}
+        </div>
         <textarea name="description" placeholder="Descripción" value={form.description} onChange={handleCreateChange} rows={2} />
         <label className="admin-checkbox">
           <input type="checkbox" name="active" checked={form.active} onChange={handleCreateChange} />
@@ -375,12 +462,14 @@ function AdminProductsPage({ onSessionExpired }) {
         <div className="admin-products-list">
           {products.map((product) => {
             const draft = draftsById[product.id] || {};
+            const draftImages = draft.images || toImageInputs(getProductImages(product));
+            const previewImage = normalizeImageInputs(draftImages)[0] || "https://via.placeholder.com/120x120?text=Sin+Imagen";
             const hasStock = Number(draft.stock ?? product.stock ?? 0) > 0;
             const isActive = Boolean(draft.active);
 
             return (
               <article key={product.id} className="admin-product-row">
-                <img src={draft.image || "https://via.placeholder.com/120x120?text=Sin+Imagen"} alt={draft.name || product.name} />
+                <img src={previewImage} alt={draft.name || product.name} />
                 <div className="admin-product-fields">
                   <div className="admin-product-title-row">
                     <h3>{draft.name || product.name}</h3>
@@ -405,7 +494,20 @@ function AdminProductsPage({ onSessionExpired }) {
                         </option>
                       ))}
                     </select>
-                    <input name="image" type="url" value={draft.image || ""} onChange={(event) => handleDraftChange(product.id, event)} required />
+                    <div className="admin-image-fields admin-image-fields--compact">
+                      {imageFieldLabels.map((label, index) => (
+                        <label key={label} className="admin-image-field">
+                          <span>{label}</span>
+                          <input
+                            type="url"
+                            value={draftImages[index] || ""}
+                            placeholder={index === 0 ? "https://frente.jpg" : "https://opcional.jpg"}
+                            onChange={(event) => handleDraftImageChange(product.id, index, event.target.value)}
+                            required={index === 0}
+                          />
+                        </label>
+                      ))}
+                    </div>
                     <textarea name="description" rows={2} value={draft.description || ""} onChange={(event) => handleDraftChange(product.id, event)} />
                     <label className="admin-checkbox">
                       <input type="checkbox" name="active" checked={isActive} onChange={(event) => handleDraftChange(product.id, event)} />

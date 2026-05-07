@@ -23,12 +23,12 @@ const normalizeStock = (stock) => {
   return parsed;
 };
 
-const normalizeImageUrl = (image, { required = false } = {}) => {
+const normalizeImageUrl = (image, { required = false, fieldName = "imageUrl" } = {}) => {
   const normalized = normalizeOptionalString(image);
 
   if (!normalized) {
     if (required) {
-      throw { status: 400, payload: { error: "imageUrl es obligatorio y no puede estar vacío" } };
+      throw { status: 400, payload: { error: `${fieldName} es obligatorio y no puede estar vacío` } };
     }
 
     return "";
@@ -41,8 +41,28 @@ const normalizeImageUrl = (image, { required = false } = {}) => {
     }
     return normalized;
   } catch {
-    throw { status: 400, payload: { error: "imageUrl debe ser una URL válida" } };
+    throw { status: 400, payload: { error: `${fieldName} debe ser una URL válida` } };
   }
+};
+
+const normalizeImages = (images) => {
+  if (images === undefined) return undefined;
+
+  if (!Array.isArray(images)) {
+    throw { status: 400, payload: { error: "images debe ser un array" } };
+  }
+
+  const normalizedImages = images
+    .map((image) => normalizeOptionalString(image))
+    .filter(Boolean);
+
+  if (normalizedImages.length > 3) {
+    throw { status: 400, payload: { error: "images permite un máximo de 3 imágenes" } };
+  }
+
+  return normalizedImages.map((image) =>
+    normalizeImageUrl(image, { fieldName: "images" }),
+  );
 };
 
 const normalizeCategory = (category) => {
@@ -109,15 +129,22 @@ const validateAndBuildPayload = async (
     category = normalizeCategory(category);
   }
 
+  const images = normalizeImages(input.images);
+  const hasImagesInput = images !== undefined;
+  const primaryImage = hasImagesInput && images.length > 0
+    ? images[0]
+    : input.image ?? input.imageUrl ?? input.image_url ?? fallback.image ?? fallback.image_url;
+
   return {
     name,
     description: normalizeOptionalString(input.description ?? fallback.description),
     price: normalizePrice(input.price ?? fallback.price),
     category,
     categoryId,
-    image: normalizeImageUrl(input.image ?? input.imageUrl ?? fallback.image, {
-      required: requireImage,
+    image: normalizeImageUrl(primaryImage, {
+      required: requireImage && !(hasImagesInput && images.length > 0),
     }),
+    ...(hasImagesInput ? { images } : {}),
     stock: normalizeStock(input.stock ?? fallback.stock),
     active: normalizeActive(input.active, fallback.active ?? true),
   };

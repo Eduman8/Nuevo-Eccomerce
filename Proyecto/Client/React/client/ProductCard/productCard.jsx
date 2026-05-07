@@ -14,7 +14,13 @@ function ProductCard({ product }) {
   const stockLabel = !isActive ? "No disponible" : !hasStock ? "Sin stock" : "En stock";
   const stockClass = !isActive || !hasStock ? "stock-pill stock-pill--off" : "stock-pill";
   const description = typeof product?.description === "string" ? product.description.trim() : "";
-  const productImage = product?.image_url || product?.image;
+  const productImages = Array.isArray(product?.images)
+    ? product.images.map((image) => String(image || "").trim()).filter(Boolean)
+    : [];
+  const fallbackImage = product?.image_url || product?.image || "";
+  const productImage = productImages[0] || fallbackImage;
+  const secondaryImage = productImages[1];
+  const hasSecondaryImage = Boolean(secondaryImage);
 
   const closeLightbox = () => {
     setSelectedImage(null);
@@ -47,16 +53,32 @@ function ProductCard({ product }) {
           navigate(`/category/${product.category_id || encodeURIComponent(product.category)}`)
         }
       >
-        <img
-          className="card__image"
-          src={productImage}
-          alt={product.name}
+        <div
+          className={
+            hasSecondaryImage
+              ? "card__image-wrapper card__image-wrapper--has-hover"
+              : "card__image-wrapper"
+          }
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
             setSelectedImage(productImage);
           }}
-        />
+        >
+          <img
+            className="card__image card__image--primary"
+            src={productImage}
+            alt={product.name}
+          />
+          {hasSecondaryImage && (
+            <img
+              className="card__image card__image--secondary"
+              src={secondaryImage}
+              alt=""
+              aria-hidden="true"
+            />
+          )}
+        </div>
         <div className="card__body">
           <h3>{product.name}</h3>
           {description && <p className="card__description">{description}</p>}

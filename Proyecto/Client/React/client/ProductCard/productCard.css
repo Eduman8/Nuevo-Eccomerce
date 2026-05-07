@@ -15,12 +15,42 @@
   border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
   box-shadow: var(--shadow);
 }
-.card__image {
+.card__image-wrapper {
+  position: relative;
   width: 100%;
   aspect-ratio: 4/3;
-  object-fit: cover;
+  overflow: hidden;
   border-radius: 12px;
   cursor: zoom-in;
+  background: var(--bg-soft);
+}
+
+.card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.card__image--primary {
+  opacity: 1;
+}
+
+.card__image--secondary {
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .card__image-wrapper--has-hover .card__image--primary {
+    opacity: 0;
+  }
+
+  .card:hover .card__image-wrapper--has-hover .card__image--secondary {
+    opacity: 1;
+    transform: scale(1.02);
+  }
 }
 .product-image-lightbox {
   position: fixed;
@@ -105,6 +135,10 @@
   .product-image-lightbox,
   .product-image-lightbox__image {
     animation: none;
+  }
+
+  .card__image {
+    transition: none;
   }
 }
 

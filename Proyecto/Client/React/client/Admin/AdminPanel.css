@@ -250,3 +250,54 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin-image-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-image-fields--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-image-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.admin-image-field span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-image-previews {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  min-height: 0;
+}
+
+.admin-image-previews:empty {
+  display: none;
+}
+
+.admin-image-previews img {
+  width: 86px;
+  height: 86px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--bg-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+@media (max-width: 980px) {
+  .admin-image-fields,
+  .admin-image-fields--compact {
+    grid-template-columns: 1fr;
+  }
+}
