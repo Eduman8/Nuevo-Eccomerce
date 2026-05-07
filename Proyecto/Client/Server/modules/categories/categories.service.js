@@ -1,4 +1,17 @@
-const normalizeString = (value) => String(value || "").trim();
+const toTitleCase = (value) =>
+  value
+    .toLocaleLowerCase("es-AR")
+    .split(" ")
+    .map((word) => word.charAt(0).toLocaleUpperCase("es-AR") + word.slice(1))
+    .join(" ");
+
+const normalizeCategoryName = (value) => {
+  const normalizedSpaces = String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  return normalizedSpaces ? toTitleCase(normalizedSpaces) : "";
+};
 
 const normalizeOptionalString = (value) => {
   if (value === undefined || value === null) return "";
@@ -29,7 +42,7 @@ const normalizeActive = (active, fallback = true) => {
 };
 
 const validateAndBuildPayload = (input, fallback = {}) => {
-  const name = normalizeString(input.name ?? fallback.name);
+  const name = normalizeCategoryName(input.name ?? fallback.name);
 
   if (!name) {
     throw { status: 400, payload: { error: "name es obligatorio" } };
