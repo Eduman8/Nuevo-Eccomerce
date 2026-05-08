@@ -11,6 +11,14 @@ import {
   getPaymentMethodLabel,
   getShippingMethodLabel,
 } from "../utils/orderLabels";
+import {
+  PICKUP_LOCATION_LABEL,
+  getDeliveryAddressRows,
+  getOrderContactName,
+  getOrderContactPhone,
+  getOrderShippingReference,
+  isPickupOrder,
+} from "../utils/orderDelivery";
 import "./Orders.css";
 
 function Orders({ user, onSessionExpired }) {
@@ -62,6 +70,9 @@ function Orders({ user, onSessionExpired }) {
               shippingCost: item.shipping_cost,
               shippingAddress: item.shipping_address,
               paymentMethod: item.payment_method,
+              contactName: item.contact_name,
+              contactPhone: item.contact_phone,
+              shippingReference: item.shipping_reference,
               items: [],
             };
           }
@@ -124,13 +135,47 @@ function Orders({ user, onSessionExpired }) {
                 <p><span>Método pago</span><strong>{getPaymentMethodLabel(order.paymentMethod)}</strong></p>
               </div>
 
-              {order.shippingAddress &&
-                typeof order.shippingAddress === "object" && (
-                  <p className="order-address">
-                    Dirección: {order.shippingAddress.street},{" "}
-                    {order.shippingAddress.city}
-                  </p>
+              <div
+                className={`order-delivery-card ${
+                  isPickupOrder(order) ? "order-delivery-card-pickup" : "order-delivery-card-home"
+                }`}
+              >
+                <div className="order-delivery-card__header">
+                  <strong>{isPickupOrder(order) ? "Retiro en local" : "Envío a domicilio"}</strong>
+                  <span>{getShippingMethodLabel(order.shippingMethod)}</span>
+                </div>
+
+                {isPickupOrder(order) ? (
+                  <>
+                    <p className="order-delivery-highlight">Retiro en {PICKUP_LOCATION_LABEL}</p>
+                    {getOrderContactName(order) && (
+                      <p className="order-delivery-row">
+                        <span>Contacto</span>
+                        <strong>{getOrderContactName(order)}</strong>
+                      </p>
+                    )}
+                    {getOrderContactPhone(order) && (
+                      <p className="order-delivery-row">
+                        <span>Teléfono</span>
+                        <strong>{getOrderContactPhone(order)}</strong>
+                      </p>
+                    )}
+                    {getOrderShippingReference(order) && (
+                      <p className="order-delivery-row">
+                        <span>Nota</span>
+                        <strong>{getOrderShippingReference(order)}</strong>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  getDeliveryAddressRows(order).map((row) => (
+                    <p key={row.label} className="order-delivery-row">
+                      <span>{row.label}</span>
+                      <strong>{row.value}</strong>
+                    </p>
+                  ))
                 )}
+              </div>
 
               {order.items.length > 0 && (
                 <div className="order-products">

@@ -11,10 +11,29 @@ import {
   getPaymentMethodLabel,
   getShippingMethodLabel,
 } from "../utils/orderLabels";
+import {
+  PICKUP_LOCATION_LABEL,
+  getDeliveryAddressRows,
+  getOrderContactName,
+  getOrderContactPhone,
+  getPickupRows,
+  isPickupOrder,
+} from "../utils/orderDelivery";
 import "./AdminOrdersPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 const ADMIN_ORDER_STATUSES = ["pending", "paid", "shipped", "delivered", "cancelled", "rejected"];
+
+const renderInfoRows = (rows) => (
+  <div className="admin-order-detail-grid">
+    {rows.map((row) => (
+      <p key={row.label}>
+        <span>{row.label}</span>
+        <strong>{row.value}</strong>
+      </p>
+    ))}
+  </div>
+);
 
 function AdminOrdersPage({ onSessionExpired }) {
   const [orders, setOrders] = useState([]);
@@ -183,35 +202,71 @@ function AdminOrdersPage({ onSessionExpired }) {
         <div className="admin-orders-list">
           {orders.map((order) => (
             <article key={order.id} className="admin-order-card">
-              <h2>Pedido #{order.id}</h2>
-              <p>
-                <span className="admin-order-label">Fecha:</span>{" "}
-                <span className="admin-order-value">{new Date(order.date).toLocaleString()}</span>
-              </p>
-              <p>
-                <span className="admin-order-label">Estado:</span>{" "}
-                <span className={`admin-order-status admin-order-status-${order.status}`}>
-                  {getOrderStatusLabel(order.status)}
-                </span>
-              </p>
-              <p>Total: ${Number(order.total || 0).toFixed(2)}</p>
-              <p>Costo de envío: ${Number(order.shippingCost || 0).toFixed(2)}</p>
-              <p>Método de pago: {getPaymentMethodLabel(order.paymentMethod)}</p>
-              <p>Método de envío: {getShippingMethodLabel(order.shippingMethod)}</p>
-
-              <div className="admin-order-block">
-                <h3>Comprador</h3>
-                <p>Nombre: {order.buyer?.name || "-"}</p>
-                <p>Email: {order.buyer?.email || "-"}</p>
+              <div className="admin-order-card-header">
+                <div>
+                  <p className="admin-order-eyebrow">Pedido</p>
+                  <h2>#{order.id}</h2>
+                </div>
+                <div className="admin-order-pill-group">
+                  <span className={`admin-order-pill admin-order-pill-delivery-${order.shippingMethod}`}>
+                    {getShippingMethodLabel(order.shippingMethod)}
+                  </span>
+                  <span className={`admin-order-status admin-order-status-${order.status}`}>
+                    {getOrderStatusLabel(order.status)}
+                  </span>
+                </div>
               </div>
 
-              <div className="admin-order-block">
-                <h3>Dirección</h3>
-                <p>Dirección: {order.shippingAddress?.address || "-"}</p>
-                <p>Número / altura: {order.shippingAddress?.addressNumber || "-"}</p>
-                <p>Ciudad: {order.shippingAddress?.city || "-"}</p>
-                <p>Provincia: {order.shippingAddress?.province || "-"}</p>
-                <p>Código postal: {order.shippingAddress?.postalCode || "-"}</p>
+              <div className="admin-order-summary-grid">
+                <p>
+                  <span>Fecha</span>
+                  <strong>{new Date(order.date).toLocaleString()}</strong>
+                </p>
+                <p>
+                  <span>Total</span>
+                  <strong>${Number(order.total || 0).toFixed(2)}</strong>
+                </p>
+                <p>
+                  <span>Envío</span>
+                  <strong>${Number(order.shippingCost || 0).toFixed(2)}</strong>
+                </p>
+                <p>
+                  <span>Pago</span>
+                  <strong>{getPaymentMethodLabel(order.paymentMethod)}</strong>
+                </p>
+              </div>
+
+              <div className="admin-order-block admin-order-block-customer">
+                <h3>Cliente</h3>
+                {renderInfoRows([
+                  {
+                    label: "Nombre de contacto",
+                    value: getOrderContactName(order) || order.buyer?.name,
+                  },
+                  { label: "Teléfono", value: getOrderContactPhone(order) },
+                  { label: "Email", value: order.buyer?.email },
+                ].filter((row) => row.value))}
+              </div>
+
+              <div
+                className={`admin-order-block admin-order-delivery-block ${
+                  isPickupOrder(order) ? "admin-order-delivery-pickup" : "admin-order-delivery-home"
+                }`}
+              >
+                <div className="admin-order-block-title-row">
+                  <h3>{isPickupOrder(order) ? "Retiro en local" : "Envío a domicilio"}</h3>
+                  <span className={`admin-order-pill admin-order-pill-delivery-${order.shippingMethod}`}>
+                    {getShippingMethodLabel(order.shippingMethod)}
+                  </span>
+                </div>
+                {isPickupOrder(order) ? (
+                  <>
+                    <p className="admin-order-delivery-highlight">Retiro en {PICKUP_LOCATION_LABEL}</p>
+                    {getPickupRows(order).length > 0 && renderInfoRows(getPickupRows(order))}
+                  </>
+                ) : (
+                  renderInfoRows(getDeliveryAddressRows(order))
+                )}
               </div>
 
               <div className="admin-order-block">

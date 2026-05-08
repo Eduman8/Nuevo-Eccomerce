@@ -79,6 +79,11 @@ const parseJsonIfNeeded = (value) => {
   return value;
 };
 
+const cleanNullableText = (value) => {
+  const normalized = String(value || "").trim();
+  return normalized || null;
+};
+
 const assertOrderOwnership = (order, userId) => {
   if (!order) {
     throw { status: 404, message: "Orden no encontrada" };
@@ -132,6 +137,9 @@ const mapShippingAddress = (shippingAddress) => {
       city: null,
       province: null,
       postalCode: null,
+      contactName: null,
+      contactPhone: null,
+      shippingReference: null,
     };
   }
 
@@ -151,6 +159,10 @@ const mapShippingAddress = (shippingAddress) => {
     province: parsed.province || parsed.state || null,
     postalCode:
       parsed.postalCode || parsed.postal_code || parsed.zipCode || null,
+    contactName: parsed.contactName || parsed.contact_name || null,
+    contactPhone: parsed.contactPhone || parsed.contact_phone || null,
+    shippingReference:
+      parsed.shippingReference || parsed.shipping_reference || parsed.reference || parsed.note || null,
   };
 };
 
@@ -359,7 +371,21 @@ const createOrdersService = ({
     shippingMethod,
     paymentMethod,
     breakdown,
+    shippingReference = null,
   }) => {
+    const contactName = cleanNullableText(
+      shippingAddress?.contactName || shippingAddress?.contact_name,
+    );
+    const contactPhone = cleanNullableText(
+      shippingAddress?.contactPhone || shippingAddress?.contact_phone,
+    );
+    const referenceFromAddress = cleanNullableText(
+      shippingAddress?.reference || shippingAddress?.note,
+    );
+    const referenceFromCheckout = cleanNullableText(shippingReference);
+    const visibleShippingReference =
+      referenceFromAddress ||
+      (referenceFromCheckout?.startsWith("checkout:") ? null : referenceFromCheckout);
     const order = await ordersRepository.createOrder({
       total: breakdown.total,
       userId,
@@ -371,6 +397,9 @@ const createOrdersService = ({
         country: "Argentina",
       }),
       paymentMethod,
+      contactName,
+      contactPhone,
+      shippingReference: visibleShippingReference,
       client,
     });
 
@@ -628,7 +657,7 @@ const createOrdersService = ({
 
     startMercadoPagoCheckout: async (
       userId,
-      { shippingAddress, shippingMethod, paymentMethod },
+      { shippingAddress, shippingMethod, paymentMethod, shippingReference },
     ) => {
       if (!userId) {
         throw { status: 400, message: "userId es obligatorio" };
@@ -664,6 +693,7 @@ const createOrdersService = ({
           shippingMethod: normalizedShippingMethod,
           paymentMethod: normalizedPaymentMethod,
           breakdown,
+          shippingReference,
         });
 
         await client.query("COMMIT");
@@ -773,7 +803,7 @@ const createOrdersService = ({
 
     confirmCashOrderFromCheckout: async (
       userId,
-      { shippingAddress, shippingMethod, paymentMethod },
+      { shippingAddress, shippingMethod, paymentMethod, shippingReference },
     ) => {
       if (!userId) {
         throw {
@@ -809,6 +839,7 @@ const createOrdersService = ({
           shippingMethod: normalizedShippingMethod,
           paymentMethod: normalizedPaymentMethod,
           breakdown,
+          shippingReference,
         });
 
         await client.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
@@ -1065,6 +1096,12 @@ const createOrdersService = ({
         if (!groupedOrders.has(row.order_id)) {
           const shipping = mapShippingAddress(row.shipping_address);
 
+          const contactName = cleanNullableText(row.contact_name || shipping.contactName);
+          const contactPhone = cleanNullableText(row.contact_phone || shipping.contactPhone);
+          const shippingReference = cleanNullableText(
+            row.shipping_reference || shipping.shippingReference,
+          );
+
           groupedOrders.set(row.order_id, {
             id: row.order_id,
             date: row.created_at,
@@ -1073,12 +1110,20 @@ const createOrdersService = ({
             shippingCost: Number(row.shipping_cost || 0),
             paymentMethod: row.payment_method,
             shippingMethod: row.shipping_method,
+            contactName,
+            contactPhone,
+            shippingReference,
             buyer: {
               id: row.user_id,
               name: row.user_name,
               email: row.user_email,
             },
-            shippingAddress: shipping,
+            shippingAddress: {
+              ...shipping,
+              contactName,
+              contactPhone,
+              shippingReference,
+            },
             items: [],
           });
         }
@@ -1099,10 +1144,25 @@ const createOrdersService = ({
     getOrdersByUser: async (userId) => {
       const rows = await ordersRepository.getOrdersByUserId(userId);
 
-      return rows.map((row) => ({
-        ...row,
-        shipping_address: parseJsonIfNeeded(row.shipping_address),
-      }));
+      return rows.map((row) => {
+        const shippingAddress = parseJsonIfNeeded(row.shipping_address);
+
+        return {
+          ...row,
+          contact_name:
+            row.contact_name || shippingAddress?.contactName || shippingAddress?.contact_name || null,
+          contact_phone:
+            row.contact_phone || shippingAddress?.contactPhone || shippingAddress?.contact_phone || null,
+          shipping_reference:
+            row.shipping_reference ||
+            shippingAddress?.shippingReference ||
+            shippingAddress?.shipping_reference ||
+            shippingAddress?.reference ||
+            shippingAddress?.note ||
+            null,
+          shipping_address: shippingAddress,
+        };
+      });
     },
   };
 

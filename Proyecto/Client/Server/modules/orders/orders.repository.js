@@ -34,14 +34,17 @@ const createOrdersRepository = (pool) => ({
     shippingCost,
     shippingAddress,
     paymentMethod,
+    contactName = null,
+    contactPhone = null,
+    shippingReference = null,
     client = null,
   }) => {
     const executor = client || pool;
 
     const result = await executor.query(
       `INSERT INTO orders
-      (user_id, total, status, shipping_method, shipping_cost, shipping_address, payment_method)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+      (user_id, total, status, shipping_method, shipping_cost, shipping_address, payment_method, contact_name, contact_phone, shipping_reference)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
       [
         userId,
@@ -51,6 +54,9 @@ const createOrdersRepository = (pool) => ({
         shippingCost,
         shippingAddress,
         paymentMethod,
+        contactName,
+        contactPhone,
+        shippingReference,
       ],
     );
 
@@ -198,6 +204,9 @@ const createOrdersRepository = (pool) => ({
         o.shipping_cost,
         o.shipping_address,
         o.payment_method,
+        o.contact_name,
+        o.contact_phone,
+        o.shipping_reference,
         u.id AS user_id,
         u.name AS user_name,
         u.email AS user_email,
@@ -227,6 +236,9 @@ const createOrdersRepository = (pool) => ({
       o.shipping_cost,
       o.shipping_address,
       o.payment_method,
+      o.contact_name,
+      o.contact_phone,
+      o.shipping_reference,
       oi.quantity,
       oi.price,
       p.name

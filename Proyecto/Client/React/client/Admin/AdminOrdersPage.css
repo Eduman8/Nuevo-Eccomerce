@@ -24,40 +24,136 @@
 
 .admin-order-card {
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 18px;
   padding: 16px;
   background: var(--card);
   box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 14px;
 }
 
-.admin-order-card h2 {
-  margin-bottom: 8px;
+.admin-order-card h2,
+.admin-order-card h3,
+.admin-order-card p {
+  margin: 0;
 }
 
 .admin-order-card p {
-  margin: 0;
   color: var(--text-muted);
 }
 
-.admin-order-label {
-  font-weight: 700;
+.admin-order-card-header,
+.admin-order-block-title-row,
+.admin-order-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-order-card-header,
+.admin-order-block-title-row {
+  align-items: flex-start;
+}
+
+.admin-order-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.admin-order-pill-group {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-order-pill,
+.admin-order-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  border: 1px solid var(--border);
   color: var(--text);
 }
 
-.admin-order-value {
+.admin-order-pill-delivery-pickup {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: color-mix(in srgb, var(--primary) 14%, var(--card));
+}
+
+.admin-order-pill-delivery-home_delivery {
+  border-color: color-mix(in srgb, var(--info) 55%, var(--border));
+  background: color-mix(in srgb, var(--info) 14%, var(--card));
+}
+
+.admin-order-summary-grid,
+.admin-order-detail-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-order-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-order-detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-order-summary-grid p,
+.admin-order-detail-grid p {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: color-mix(in srgb, var(--surface-soft) 32%, transparent);
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-order-summary-grid span,
+.admin-order-detail-grid span {
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
-.admin-order-block {
-  margin-top: 12px;
-  background: color-mix(in srgb, var(--bg-soft) 62%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
+.admin-order-summary-grid strong,
+.admin-order-detail-grid strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.admin-order-block h3 {
-  margin-bottom: 6px;
+.admin-order-block {
+  background: color-mix(in srgb, var(--bg-soft) 62%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-order-delivery-pickup {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+}
+
+.admin-order-delivery-home {
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
+  background: color-mix(in srgb, var(--info) 7%, var(--card));
+}
+
+.admin-order-delivery-highlight {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--card) 70%, var(--primary));
+  color: var(--text);
+  font-weight: 800;
 }
 
 .admin-order-items {
@@ -71,20 +167,9 @@
   gap: 12px;
   font-size: 0.95rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 8px;
   background: color-mix(in srgb, var(--card) 65%, var(--bg-soft));
-}
-
-.admin-order-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  border: 1px solid var(--border);
-  color: var(--text);
 }
 
 .admin-order-status-pending {
@@ -106,11 +191,7 @@
 }
 
 .admin-order-actions {
-  margin-top: 14px;
-  display: flex;
-  gap: 12px;
   align-items: flex-end;
-  justify-content: space-between;
   flex-wrap: wrap;
 }
 
@@ -165,10 +246,28 @@
   color: color-mix(in srgb, var(--danger) 72%, #7f1f35);
 }
 
+@media (max-width: 900px) {
+  .admin-order-summary-grid,
+  .admin-order-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
-  .admin-order-item-row {
+  .admin-order-card-header,
+  .admin-order-block-title-row,
+  .admin-order-actions {
+    flex-direction: column;
+  }
+
+  .admin-order-pill-group {
+    justify-content: flex-start;
+  }
+
+  .admin-order-item-row,
+  .admin-order-summary-grid,
+  .admin-order-detail-grid {
     grid-template-columns: 1fr;
-    gap: 4px;
   }
 
   .admin-order-actions {

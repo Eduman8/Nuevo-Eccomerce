@@ -8,6 +8,9 @@ const ensureOrderSchema = async (pool) => {
       ADD COLUMN IF NOT EXISTS shipping_address JSONB,
       ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30),
       ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(80),
+      ADD COLUMN IF NOT EXISTS shipping_reference TEXT,
       ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP,
       ADD COLUMN IF NOT EXISTS mp_preference_id VARCHAR(255);
     `);
