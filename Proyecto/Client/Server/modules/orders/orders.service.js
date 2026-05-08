@@ -2,6 +2,7 @@ const { Preference } = require("mercadopago");
 const {
   hasValidMercadoPagoTokenFormat,
 } = require("../payments/mercadopago.helpers");
+const { HOME_DELIVERY_FIXED_COST } = require("./orders.config");
 
 const ORDER_STATUS = {
   PENDING: "pending",
@@ -220,21 +221,38 @@ const createOrdersService = ({
         }
       : null;
   const validateCheckoutInput = ({ shippingAddress, shippingMethod, paymentMethod }) => {
-    if (
-      !shippingAddress ||
-      !shippingAddress.street ||
-      !shippingAddress.city ||
-      !shippingAddress.zipCode
-    ) {
-      throw {
-        status: 400,
-        message: "Dirección incompleta. Requerido: street, city, zipCode",
-      };
-    }
-
     const normalizedShippingMethod = normalizeShippingMethod(shippingMethod);
     if (!normalizedShippingMethod) {
       throw { status: 400, message: "Método de envío inválido" };
+    }
+
+    if (normalizedShippingMethod === "home_delivery") {
+      if (
+        !shippingAddress ||
+        !shippingAddress.street ||
+        !shippingAddress.city ||
+        !(shippingAddress.state || shippingAddress.province) ||
+        !shippingAddress.zipCode
+      ) {
+        throw {
+          status: 400,
+          message:
+            "Dirección incompleta para envío a domicilio. Requerido: street, city, state, zipCode",
+        };
+      }
+    }
+
+    if (normalizedShippingMethod === "pickup") {
+      if (
+        !shippingAddress ||
+        !String(shippingAddress.contactName || "").trim() ||
+        !String(shippingAddress.contactPhone || "").trim()
+      ) {
+        throw {
+          status: 400,
+          message: "Datos incompletos para retiro en local. Requerido: contactName, contactPhone",
+        };
+      }
     }
 
     const normalizedPaymentMethod = String(paymentMethod || "")
@@ -327,7 +345,7 @@ const createOrdersService = ({
       0,
     );
 
-    const shippingCost = shippingMethod === "home_delivery" ? 3000 : 0;
+    const shippingCost = shippingMethod === "home_delivery" ? HOME_DELIVERY_FIXED_COST : 0;
     const total = Number((subtotal + shippingCost).toFixed(2));
 
     return { subtotal, shippingCost, total };

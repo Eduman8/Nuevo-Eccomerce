@@ -6,6 +6,7 @@ import ShippingStep from "./ShippingStep";
 import PaymentStep from "./PaymentStep";
 import ConfirmationStep from "./ConfirmationStep";
 import { getOrderStatusLabel } from "../utils/orderLabels";
+import { HOME_DELIVERY_FIXED_COST, PICKUP_LOCATION_LABEL } from "./checkout.config";
 import "./Checkout.css";
 
 const initialAddress = {
@@ -13,6 +14,13 @@ const initialAddress = {
   city: "",
   state: "",
   zipCode: "",
+  reference: "",
+};
+
+const initialContactInfo = {
+  name: "",
+  phone: "",
+  note: "",
 };
 
 function CheckoutPage({ user }) {
@@ -28,7 +36,8 @@ function CheckoutPage({ user }) {
   } = useCart();
 
   const [address, setAddress] = useState(initialAddress);
-  const [shippingMethod, setShippingMethod] = useState("home_delivery");
+  const [contactInfo, setContactInfo] = useState(initialContactInfo);
+  const [shippingMethod, setShippingMethod] = useState("pickup");
   const [paymentMethod, setPaymentMethod] = useState("mercadopago");
   const [orderSummary, setOrderSummary] = useState(null);
   const [error, setError] = useState("");
@@ -131,13 +140,14 @@ function CheckoutPage({ user }) {
   }, [location.search, user, confirmMercadoPagoOrder, navigate, mpConfirmed]);
 
   const shippingCost = useMemo(
-    () => (shippingMethod === "home_delivery" ? 3000 : 0),
+    () => (shippingMethod === "home_delivery" ? HOME_DELIVERY_FIXED_COST : 0),
     [shippingMethod],
   );
 
   useEffect(() => {
     if (paymentMethod === "cash" && shippingMethod === "home_delivery") {
       setShippingMethod("pickup");
+      setOrderSummary(null);
     }
   }, [paymentMethod, shippingMethod]);
 
@@ -159,14 +169,69 @@ function CheckoutPage({ user }) {
     );
   }
 
+  const resetValidatedSummary = () => {
+    setOrderSummary(null);
+    setSuccess("");
+  };
+
   const updateAddress = (field, value) => {
     setAddress((prev) => ({ ...prev, [field]: value }));
+    resetValidatedSummary();
+  };
+
+  const updateContactInfo = (field, value) => {
+    setContactInfo((prev) => ({ ...prev, [field]: value }));
+    resetValidatedSummary();
+  };
+
+  const handleShippingMethodChange = (nextMethod) => {
+    setShippingMethod(nextMethod);
+    resetValidatedSummary();
+  };
+
+  const handlePaymentMethodChange = (nextMethod) => {
+    setPaymentMethod(nextMethod);
+    if (nextMethod === "cash") {
+      setShippingMethod("pickup");
+    }
+    resetValidatedSummary();
   };
 
   const validateForm = () => {
-    if (!address.street || !address.city || !address.zipCode) {
-      throw new Error("Completa los campos obligatorios de dirección.");
+    if (paymentMethod === "cash" && shippingMethod === "home_delivery") {
+      throw new Error("El pago en efectivo está disponible solo para retiro en local.");
     }
+
+    if (shippingMethod === "pickup") {
+      if (!contactInfo.name.trim() || !contactInfo.phone.trim()) {
+        throw new Error("Completá nombre y teléfono de contacto para retirar en local.");
+      }
+      return;
+    }
+
+    if (!address.street.trim() || !address.city.trim() || !address.state.trim() || !address.zipCode.trim()) {
+      throw new Error("Completa calle, ciudad, provincia y código postal para el envío a domicilio.");
+    }
+  };
+
+  const buildShippingAddressPayload = () => {
+    if (shippingMethod === "pickup") {
+      return {
+        fulfillment: "pickup",
+        pickupLocation: PICKUP_LOCATION_LABEL,
+        contactName: contactInfo.name.trim(),
+        contactPhone: contactInfo.phone.trim(),
+        note: contactInfo.note.trim() || null,
+      };
+    }
+
+    return {
+      street: address.street.trim(),
+      city: address.city.trim(),
+      state: address.state.trim(),
+      zipCode: address.zipCode.trim(),
+      reference: address.reference.trim() || null,
+    };
   };
 
   const handleCreateOrder = async () => {
@@ -178,7 +243,7 @@ function CheckoutPage({ user }) {
       setLoadingAction("create_order");
 
       const pendingOrder = await createPendingOrder({
-        shippingAddress: address,
+        shippingAddress: buildShippingAddressPayload(),
         shippingMethod,
         paymentMethod,
       });
@@ -206,7 +271,7 @@ function CheckoutPage({ user }) {
       setNotice({ type: "info", message: "Preparando el pago. Serás redirigido a Mercado Pago..." });
 
       const data = await createMercadoPagoPreference({
-        shippingAddress: address,
+        shippingAddress: buildShippingAddressPayload(),
         shippingMethod,
         paymentMethod,
       });
@@ -246,7 +311,7 @@ function CheckoutPage({ user }) {
       const shippingReference = `checkout:${Date.now()}`;
 
       const result = await confirmCashOrder({
-        shippingAddress: address,
+        shippingAddress: buildShippingAddressPayload(),
         shippingMethod,
         paymentMethod,
         shippingReference,
@@ -296,15 +361,19 @@ function CheckoutPage({ user }) {
 
       <div className="checkout-layout">
         <section className="checkout-main">
-          <AddressStep address={address} onChange={updateAddress} />
           <ShippingStep
             shippingMethod={shippingMethod}
-            onChange={setShippingMethod}
+            onChange={handleShippingMethodChange}
             cashSelected={paymentMethod === "cash"}
+            contactInfo={contactInfo}
+            onContactChange={updateContactInfo}
           />
+          {shippingMethod === "home_delivery" && (
+            <AddressStep address={address} onChange={updateAddress} />
+          )}
           <PaymentStep
             paymentMethod={paymentMethod}
-            onMethodChange={setPaymentMethod}
+            onMethodChange={handlePaymentMethodChange}
             disabled={isProcessing}
           />
 
@@ -339,6 +408,15 @@ function CheckoutPage({ user }) {
             <span>Total estimado</span>
             <strong>${(total + shippingCost).toFixed(2)}</strong>
           </p>
+          <p>
+            <span>Método de entrega</span>
+            <strong>{shippingMethod === "pickup" ? "Retiro" : "Domicilio"}</strong>
+          </p>
+          {shippingMethod === "pickup" && (
+            <p className="checkout-summary-note">
+              Retiro en local: se guardan datos de contacto sin dirección postal.
+            </p>
+          )}
           {paymentMethod === "cash" && (
             <p className="checkout-notice checkout-notice-info">Pago a acordar con el vendedor</p>
           )}

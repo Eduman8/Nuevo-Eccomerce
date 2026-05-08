@@ -1,7 +1,10 @@
 function AddressStep({ address, onChange }) {
   return (
     <section className="checkout-step">
-      <h3>1. Dirección (Argentina)</h3>
+      <h3>2. Dirección de envío</h3>
+      <p className="checkout-step-hint">
+        El envío a domicilio está sujeto a disponibilidad y coordinación con la tienda.
+      </p>
       <div className="checkout-grid">
         <input
           placeholder="Calle y número"
@@ -24,6 +27,11 @@ function AddressStep({ address, onChange }) {
           onChange={(e) => onChange("zipCode", e.target.value)}
         />
       </div>
+      <input
+        placeholder="Referencia opcional"
+        value={address.reference}
+        onChange={(e) => onChange("reference", e.target.value)}
+      />
     </section>
   );
 }

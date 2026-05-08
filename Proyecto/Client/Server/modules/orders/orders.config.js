@@ -1,0 +1,5 @@
+const HOME_DELIVERY_FIXED_COST = 3000;
+
+module.exports = {
+  HOME_DELIVERY_FIXED_COST,
+};
