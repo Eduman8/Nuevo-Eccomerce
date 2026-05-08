@@ -10,6 +10,9 @@ const mercadoPagoWebhook =
     notificationService,
   ) =>
   async (req, res) => {
+    const shouldNotifyPaymentConfirmed = (confirmation) =>
+      confirmation?.paid === true && confirmation?.alreadyProcessed === false;
+
     const getOrderNotificationContext = async (orderId) => {
       const result = await pool.query(
         `
@@ -18,11 +21,32 @@ const mercadoPagoWebhook =
           o.status,
           o.total,
           o.payment_method,
+          o.shipping_method,
+          o.shipping_address,
+          o.contact_name,
+          o.contact_phone,
+          o.shipping_reference,
           u.name AS buyer_name,
-          u.email AS buyer_email
+          u.email AS buyer_email,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'productId', oi.product_id,
+                'productName', p.name,
+                'quantity', oi.quantity,
+                'unitPrice', oi.price,
+                'subtotal', (oi.quantity * oi.price)
+              )
+              ORDER BY oi.id ASC
+            ) FILTER (WHERE oi.id IS NOT NULL),
+            '[]'::json
+          ) AS items
         FROM orders o
         JOIN users u ON u.id = o.user_id
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        LEFT JOIN products p ON p.id = oi.product_id
         WHERE o.id = $1
+        GROUP BY o.id, u.name, u.email
         LIMIT 1
         `,
         [orderId],
@@ -36,8 +60,28 @@ const mercadoPagoWebhook =
         status: row.status,
         total: row.total,
         paymentMethod: row.payment_method,
+        shippingMethod: row.shipping_method,
+        shippingAddress: row.shipping_address || null,
+        contactName:
+          row.contact_name ||
+          row.shipping_address?.contactName ||
+          row.shipping_address?.contact_name ||
+          null,
+        contactPhone:
+          row.contact_phone ||
+          row.shipping_address?.contactPhone ||
+          row.shipping_address?.contact_phone ||
+          null,
+        shippingReference:
+          row.shipping_reference ||
+          row.shipping_address?.shippingReference ||
+          row.shipping_address?.shipping_reference ||
+          row.shipping_address?.reference ||
+          row.shipping_address?.note ||
+          null,
         buyerName: row.buyer_name,
         buyerEmail: row.buyer_email,
+        items: Array.isArray(row.items) ? row.items : [],
       };
     };
 
@@ -82,14 +126,23 @@ const mercadoPagoWebhook =
 
       await client.query("COMMIT");
 
-      if (confirmation.paid && !confirmation.alreadyProcessed) {
-        const notificationOrder = await getOrderNotificationContext(
-          confirmation.orderId,
-        );
+      if (shouldNotifyPaymentConfirmed(confirmation)) {
+        try {
+          const notificationOrder = await getOrderNotificationContext(
+            confirmation.orderId,
+          );
 
-        if (notificationOrder) {
-          await notificationService?.notifyMercadoPagoApprovedForCustomer({
-            order: notificationOrder,
+          if (notificationOrder) {
+            await notificationService?.notifyMercadoPagoApprovedForCustomer({
+              order: notificationOrder,
+              paymentId: confirmation.paymentId,
+            });
+          }
+        } catch (error) {
+          console.error("[Notification] notifyMercadoPagoApprovedForCustomer failed after webhook commit", {
+            message: error.message,
+            stack: error.stack,
+            orderId: confirmation.orderId,
             paymentId: confirmation.paymentId,
           });
         }

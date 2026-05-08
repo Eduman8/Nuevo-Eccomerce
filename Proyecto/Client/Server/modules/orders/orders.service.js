@@ -221,17 +221,52 @@ const createOrdersService = ({
   finalizeOrderWithStockValidation,
   notificationService,
 }) => {
-  const mapOrderNotificationContext = (orderContext) =>
-    orderContext
-      ? {
-          orderId: orderContext.order_id,
-          status: orderContext.status,
-          total: orderContext.total,
-          paymentMethod: orderContext.payment_method,
-          buyerName: orderContext.buyer_name,
-          buyerEmail: orderContext.buyer_email,
-        }
-      : null;
+  const mapOrderNotificationContext = (orderContext) => {
+    if (!orderContext) return null;
+
+    const shippingAddress = parseJsonIfNeeded(orderContext.shipping_address);
+
+    return {
+      orderId: orderContext.order_id,
+      status: orderContext.status,
+      total: orderContext.total,
+      paymentMethod: orderContext.payment_method,
+      shippingMethod: orderContext.shipping_method,
+      shippingAddress,
+      contactName:
+        cleanNullableText(orderContext.contact_name) ||
+        cleanNullableText(shippingAddress?.contactName || shippingAddress?.contact_name),
+      contactPhone:
+        cleanNullableText(orderContext.contact_phone) ||
+        cleanNullableText(shippingAddress?.contactPhone || shippingAddress?.contact_phone),
+      shippingReference:
+        cleanNullableText(orderContext.shipping_reference) ||
+        cleanNullableText(
+          shippingAddress?.shippingReference ||
+            shippingAddress?.shipping_reference ||
+            shippingAddress?.reference ||
+            shippingAddress?.note,
+        ),
+      buyerName: orderContext.buyer_name,
+      buyerEmail: orderContext.buyer_email,
+      items: Array.isArray(orderContext.items) ? orderContext.items : [],
+    };
+  };
+
+  const shouldNotifyPaymentConfirmed = (confirmation) =>
+    confirmation?.paid === true && confirmation?.alreadyProcessed === false;
+
+  const runNotificationAfterCommit = async (label, fn, meta = {}) => {
+    try {
+      await fn();
+    } catch (error) {
+      console.error(`[Notification] ${label} failed after commit`, {
+        message: error.message,
+        stack: error.stack,
+        ...meta,
+      });
+    }
+  };
   const validateCheckoutInput = ({ shippingAddress, shippingMethod, paymentMethod }) => {
     const normalizedShippingMethod = normalizeShippingMethod(shippingMethod);
     if (!normalizedShippingMethod) {
@@ -698,15 +733,20 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
-        const orderContext = await ordersRepository.getOrderNotificationContextById(
-          order.id,
+        await runNotificationAfterCommit(
+          "notifyOrderCreatedForAdmin",
+          async () => {
+            const orderContext =
+              await ordersRepository.getOrderNotificationContextById(order.id);
+            const notificationOrder = mapOrderNotificationContext(orderContext);
+            if (notificationOrder) {
+              await notificationService?.notifyOrderCreatedForAdmin({
+                order: notificationOrder,
+              });
+            }
+          },
+          { orderId: order.id },
         );
-        const notificationOrder = mapOrderNotificationContext(orderContext);
-        if (notificationOrder) {
-          await notificationService?.notifyOrderCreatedForAdmin({
-            order: notificationOrder,
-          });
-        }
 
         const preference = await service.createCheckoutProPreference(
           order.id,
@@ -788,6 +828,22 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
+        await runNotificationAfterCommit(
+          "notifyCashOrderReceivedForCustomer",
+          async () => {
+            const orderContext =
+              await ordersRepository.getOrderNotificationContextById(order.id);
+            const notificationOrder = mapOrderNotificationContext(orderContext);
+
+            if (notificationOrder) {
+              await notificationService?.notifyCashOrderReceivedForCustomer({
+                order: notificationOrder,
+              });
+            }
+          },
+          { orderId: order.id },
+        );
+
         return {
           message: "Orden confirmada en efectivo",
           orderId: order.id,
@@ -846,19 +902,24 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
-        const orderContext = await ordersRepository.getOrderNotificationContextById(
-          order.id,
-        );
-        const notificationOrder = mapOrderNotificationContext(orderContext);
+        await runNotificationAfterCommit(
+          "notifyCashCheckoutOrder",
+          async () => {
+            const orderContext =
+              await ordersRepository.getOrderNotificationContextById(order.id);
+            const notificationOrder = mapOrderNotificationContext(orderContext);
 
-        if (notificationOrder) {
-          await notificationService?.notifyOrderCreatedForAdmin({
-            order: notificationOrder,
-          });
-          await notificationService?.notifyCashPendingForCustomer({
-            order: notificationOrder,
-          });
-        }
+            if (notificationOrder) {
+              await notificationService?.notifyOrderCreatedForAdmin({
+                order: notificationOrder,
+              });
+              await notificationService?.notifyCashOrderReceivedForCustomer({
+                order: notificationOrder,
+              });
+            }
+          },
+          { orderId: order.id },
+        );
 
         return {
           message: "Orden creada en efectivo. Pendiente de confirmación.",
@@ -932,17 +993,23 @@ const createOrdersService = ({
 
         await client.query("COMMIT");
 
-        if (confirmation.paid && !confirmation.alreadyProcessed) {
-          const orderContext =
-            await ordersRepository.getOrderNotificationContextById(orderId);
-          const notificationOrder = mapOrderNotificationContext(orderContext);
+        if (shouldNotifyPaymentConfirmed(confirmation)) {
+          await runNotificationAfterCommit(
+            "notifyMercadoPagoApprovedForCustomer",
+            async () => {
+              const orderContext =
+                await ordersRepository.getOrderNotificationContextById(orderId);
+              const notificationOrder = mapOrderNotificationContext(orderContext);
 
-          if (notificationOrder) {
-            await notificationService?.notifyMercadoPagoApprovedForCustomer({
-              order: notificationOrder,
-              paymentId: confirmation.paymentId,
-            });
-          }
+              if (notificationOrder) {
+                await notificationService?.notifyMercadoPagoApprovedForCustomer({
+                  order: notificationOrder,
+                  paymentId: confirmation.paymentId,
+                });
+              }
+            },
+            { orderId, paymentId: confirmation.paymentId },
+          );
         }
 
         return {
@@ -1057,6 +1124,29 @@ const createOrdersService = ({
         });
 
         await client.query("COMMIT");
+
+        if (
+          order.payment_method === "mercadopago" &&
+          order.status !== ORDER_STATUS.PAID &&
+          normalizedStatus === ORDER_STATUS.PAID
+        ) {
+          await runNotificationAfterCommit(
+            "notifyManualMercadoPagoPaidForCustomer",
+            async () => {
+              const orderContext =
+                await ordersRepository.getOrderNotificationContextById(orderId);
+              const notificationOrder = mapOrderNotificationContext(orderContext);
+
+              if (notificationOrder) {
+                await notificationService?.notifyMercadoPagoApprovedForCustomer({
+                  order: notificationOrder,
+                });
+              }
+            },
+            { orderId },
+          );
+        }
+
         return updatedOrder;
       } catch (err) {
         await client.query("ROLLBACK");

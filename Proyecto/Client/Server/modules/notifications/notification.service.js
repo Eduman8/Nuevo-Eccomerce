@@ -21,17 +21,24 @@ const createNotificationService = ({ emailService }) => {
         { orderId: order?.orderId },
       ),
 
+    notifyCashOrderReceivedForCustomer: async ({ order }) =>
+      runSafely(
+        "notifyCashOrderReceivedForCustomer",
+        () => emailService.sendCashOrderReceivedEmail({ order }),
+        { orderId: order?.orderId, buyerEmail: order?.buyerEmail },
+      ),
+
     notifyCashPendingForCustomer: async ({ order }) =>
       runSafely(
         "notifyCashPendingForCustomer",
-        () => emailService.sendCashPendingToCustomer({ order }),
+        () => emailService.sendCashOrderReceivedEmail({ order }),
         { orderId: order?.orderId, buyerEmail: order?.buyerEmail },
       ),
 
     notifyMercadoPagoApprovedForCustomer: async ({ order, paymentId }) =>
       runSafely(
         "notifyMercadoPagoApprovedForCustomer",
-        () => emailService.sendMercadoPagoApprovedToCustomer({ order, paymentId }),
+        () => emailService.sendPaymentConfirmedEmail({ order, paymentId }),
         { orderId: order?.orderId, buyerEmail: order?.buyerEmail, paymentId },
       ),
   };

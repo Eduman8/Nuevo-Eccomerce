@@ -89,11 +89,32 @@ const createOrdersRepository = (pool) => ({
         o.status,
         o.total,
         o.payment_method,
+        o.shipping_method,
+        o.shipping_address,
+        o.contact_name,
+        o.contact_phone,
+        o.shipping_reference,
         u.name AS buyer_name,
-        u.email AS buyer_email
+        u.email AS buyer_email,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'productId', oi.product_id,
+              'productName', p.name,
+              'quantity', oi.quantity,
+              'unitPrice', oi.price,
+              'subtotal', (oi.quantity * oi.price)
+            )
+            ORDER BY oi.id ASC
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'::json
+        ) AS items
       FROM orders o
       JOIN users u ON u.id = o.user_id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN products p ON p.id = oi.product_id
       WHERE o.id = $1
+      GROUP BY o.id, u.name, u.email
       LIMIT 1
       `,
       [orderId],
